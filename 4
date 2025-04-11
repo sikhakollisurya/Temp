@@ -1,0 +1,52 @@
+import streamlit as st
+import os
+import pandas as pd
+
+# Path to your local OneDrive folder
+folder_path = "path/to/your/OneDrive/folder"
+
+# Load Excel files only
+all_files = sorted([f for f in os.listdir(folder_path) if f.endswith(('.xlsx', '.xls'))])
+
+# Sidebar search bar
+st.sidebar.title("OneDrive Excel Viewer")
+search_query = st.sidebar.text_input("Search files", key="search_input")
+
+# Filter files based on search query
+filtered_files = [f for f in all_files if search_query.lower() in f.lower()]
+
+# Use selectbox instead of multiple buttons for keyboard navigation (Enter to select)
+st.sidebar.subheader("Files")
+selected_file = st.sidebar.selectbox("Select an Excel file", filtered_files, key="file_selector")
+
+# Save in session state for persistence
+if selected_file:
+    st.session_state.selected_file = selected_file
+    st.session_state.selected_sheet = None  # Reset sheet when file changes
+
+# If a file is selected, process it
+if 'selected_file' in st.session_state and st.session_state.selected_file:
+    file_path = os.path.join(folder_path, st.session_state.selected_file)
+    st.header(f"File: {st.session_state.selected_file}")
+
+    try:
+        xls = pd.ExcelFile(file_path)
+        sheets = xls.sheet_names
+
+        st.subheader("Sheets:")
+
+        # Show sheet buttons vertically with spacing
+        for sheet in sheets:
+            if st.button(sheet, key=sheet):
+                st.session_state.selected_sheet = sheet
+
+        # Display selected sheet
+        if 'selected_sheet' in st.session_state and st.session_state.selected_sheet:
+            df = xls.parse(st.session_state.selected_sheet)
+            st.write(f"Sheet: `{st.session_state.selected_sheet}`")
+            st.dataframe(df)
+
+    except Exception as e:
+        st.error(f"Failed to read file: {e}")
+else:
+    st.write("Select an Excel file from the sidebar to view its content.")
