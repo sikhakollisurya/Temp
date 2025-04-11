@@ -1,0 +1,21 @@
+import streamlit as st
+import os
+
+# Set the path to your downloaded OneDrive folder
+folder_path = "path/to/your/OneDrive/folder"
+
+# Get list of files and subdirectories
+try:
+    files = os.listdir(folder_path)
+    files = sorted(files)  # Optional: sort alphabetically
+
+    st.sidebar.title("OneDrive Files")
+    for file in files:
+        full_path = os.path.join(folder_path, file)
+        if os.path.isfile(full_path):
+            st.sidebar.write(file)
+        else:
+            st.sidebar.write(f"[Folder] {file}")
+
+except Exception as e:
+    st.sidebar.error(f"Error accessing folder: {e}")
