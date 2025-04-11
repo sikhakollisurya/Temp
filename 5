@@ -1,0 +1,72 @@
+import streamlit as st
+import os
+import pandas as pd
+
+# Path to your local OneDrive folder
+folder_path = "path/to/your/OneDrive/folder"
+
+# Load Excel files
+all_files = sorted([f for f in os.listdir(folder_path) if f.endswith(('.xlsx', '.xls'))])
+
+# Sidebar: Search bar
+st.sidebar.title("OneDrive Excel Viewer")
+search_query = st.sidebar.text_input("Search files")
+
+# Filter files dynamically
+filtered_files = [f for f in all_files if search_query.lower() in f.lower()]
+
+# Show matching files as buttons (clickable)
+st.sidebar.subheader("Matching Files")
+if not filtered_files:
+    st.sidebar.write("No matching files.")
+else:
+    for file in filtered_files:
+        if st.sidebar.button(file, key=file):
+            st.session_state.selected_file = file
+            st.session_state.selected_sheet = None  # Reset sheet
+
+# Main section
+if 'selected_file' in st.session_state and st.session_state.selected_file:
+    selected_path = os.path.join(folder_path, st.session_state.selected_file)
+    st.header(f"File: {st.session_state.selected_file}")
+
+    try:
+        xls = pd.ExcelFile(selected_path)
+        sheet_names = xls.sheet_names
+
+        st.subheader("Sheets:")
+
+        # Horizontal scrollable buttons using markdown + CSS
+        scroll_style = """
+        <style>
+        .sheet-scroll {
+            display: flex;
+            overflow-x: auto;
+            padding: 0.5rem 0;
+        }
+        .sheet-scroll button {
+            margin-right: 10px;
+            flex-shrink: 0;
+        }
+        </style>
+        """
+        st.markdown(scroll_style, unsafe_allow_html=True)
+
+        # Create horizontal scrollable row of buttons
+        container = st.container()
+        with container:
+            cols = st.columns(len(sheet_names))
+            for i, sheet in enumerate(sheet_names):
+                if cols[i].button(sheet, key=f"{st.session_state.selected_file}_{sheet}"):
+                    st.session_state.selected_sheet = sheet
+
+        # Show selected sheet content
+        if 'selected_sheet' in st.session_state and st.session_state.selected_sheet:
+            df = xls.parse(st.session_state.selected_sheet)
+            st.write(f"Sheet: `{st.session_state.selected_sheet}`")
+            st.dataframe(df)
+
+    except Exception as e:
+        st.error(f"Error reading file: {e}")
+else:
+    st.write("Select a file from the sidebar to begin.")
