@@ -1,0 +1,103 @@
+import streamlit as st
+import os
+import pandas as pd
+
+# === Config ===
+folder_path = "path/to/your/OneDrive/folder"
+prefix_to_trim = 11
+
+# === File list ===
+all_files = sorted([f for f in os.listdir(folder_path) if f.endswith('.xlsx')])
+
+# File display names (cleaned for UI)
+display_names = {
+    f: (f if f == "Q4 2024 - WIM H1 Reporting Data.xlsx"
+       else f[prefix_to_trim:].replace('.xlsx', '').strip())
+    for f in all_files
+}
+
+# === Sidebar search ===
+st.sidebar.title("OneDrive Excel Viewer")
+search_query = st.sidebar.text_input("Search files")
+
+# Filter files based on display name
+filtered_files = {
+    f: name for f, name in display_names.items()
+    if search_query.lower() in name.lower()
+}
+
+# === File selection (buttons) ===
+st.sidebar.subheader("Matching Files")
+if not filtered_files:
+    st.sidebar.write("No matching files.")
+else:
+    for f, name in filtered_files.items():
+        if st.sidebar.button(name, key=f):
+            st.session_state.selected_file = f
+            st.session_state.selected_sheet = None  # reset sheet selection
+
+# === Sheet names (constant) ===
+if 'sheet_names' not in st.session_state:
+    # Load any file to get sheet names once
+    try:
+        if all_files:
+            test_xls = pd.ExcelFile(os.path.join(folder_path, all_files[0]))
+            st.session_state.sheet_names = test_xls.sheet_names
+    except Exception as e:
+        st.sidebar.error(f"Failed to load sheets: {e}")
+
+# === Main display ===
+if 'selected_file' in st.session_state and st.session_state.selected_file:
+    file_path = os.path.join(folder_path, st.session_state.selected_file)
+    st.header(f"File: {display_names[st.session_state.selected_file]}")
+
+    try:
+        xls = pd.ExcelFile(file_path)
+
+        st.subheader("Sheets:")
+
+        # Custom CSS for multi-line horizontal scroll
+        sheet_style = """
+        <style>
+        .sheet-row {
+            display: flex;
+            flex-wrap: wrap;
+            overflow-x: auto;
+            padding: 0.5rem 0;
+            gap: 0.5rem;
+        }
+        .sheet-button {
+            white-space: nowrap;
+            padding: 6px 12px;
+            border: none;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .sheet-button:hover {
+            background-color: #e0e0e0;
+        }
+        </style>
+        """
+        st.markdown(sheet_style, unsafe_allow_html=True)
+
+        # Render buttons with JavaScript triggers (simulate with markdown + st.button)
+        container = st.container()
+        with container:
+            st.markdown('<div class="sheet-row">', unsafe_allow_html=True)
+            for sheet in st.session_state.sheet_names:
+                if st.button(sheet, key=f"{st.session_state.selected_file}_{sheet}"):
+                    st.session_state.selected_sheet = sheet
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        # Display the selected sheet
+        if 'selected_sheet' in st.session_state and st.session_state.selected_sheet:
+            df = xls.parse(st.session_state.selected_sheet)
+            st.write(f"Sheet: `{st.session_state.selected_sheet}`")
+            st.dataframe(df)
+
+    except Exception as e:
+        st.error(f"Error reading file: {e}")
+else:
+    st.write("Select a file from the sidebar to begin.")
