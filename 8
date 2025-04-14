@@ -1,0 +1,109 @@
+import streamlit as st
+import os
+import pandas as pd
+import math
+
+# === Config ===
+special_file = "Q4 2024 - WIM H1 Reporting Data.xlsx"
+prefix_to_trim = 11
+folder_path = os.path.join(os.getcwd(), "ExcelFiles")
+
+# === File Loading ===
+all_files = sorted([f for f in os.listdir(folder_path) if f.endswith('.xlsx')])
+display_names = {
+    f: (f if f == special_file
+       else f[prefix_to_trim:].replace('.xlsx', '').strip())
+    for f in all_files
+}
+
+# === Session Defaults ===
+if 'selected_file' not in st.session_state:
+    st.session_state.selected_file = None
+if 'selected_sheet' not in st.session_state:
+    st.session_state.selected_sheet = None
+
+# === Sidebar: File Search and Selection ===
+st.sidebar.title("Excel Files")
+search = st.sidebar.text_input("Search files")
+
+filtered = {
+    f: name for f, name in display_names.items()
+    if search.lower() in name.lower()
+}
+
+st.sidebar.markdown("---")
+
+if not filtered:
+    st.sidebar.write("No matching files.")
+else:
+    for f, name in filtered.items():
+        is_selected = f == st.session_state.selected_file
+        button_style = f"""
+        <div style='
+            background-color: {"#d0ebff" if is_selected else "#f8f9fa"};
+            padding: 8px 12px;
+            margin-bottom: 4px;
+            border-radius: 5px;
+            cursor: pointer;
+            color: {"#003366" if is_selected else "#000000"};
+            font-weight: {"bold" if is_selected else "normal"};
+        '>{name}</div>
+        """
+        if st.sidebar.button(name, key=f"file_{f}"):
+            st.session_state.selected_file = f
+            st.session_state.selected_sheet = None
+        st.sidebar.markdown(button_style, unsafe_allow_html=True)
+
+# === Load common sheets for reuse ===
+if 'common_sheet_names' not in st.session_state:
+    try:
+        normal_file = next(f for f in all_files if f != special_file)
+        xls_temp = pd.ExcelFile(os.path.join(folder_path, normal_file))
+        st.session_state.common_sheet_names = xls_temp.sheet_names
+    except Exception as e:
+        st.sidebar.error(f"Failed to preload sheets: {e}")
+
+# === Main Display ===
+if st.session_state.selected_file:
+    file = st.session_state.selected_file
+    display_name = display_names[file]
+    st.header(f"File: {display_name}")
+
+    file_path = os.path.join(folder_path, file)
+
+    try:
+        xls = pd.ExcelFile(file_path)
+
+        # Pick correct sheet list
+        sheet_names = (
+            xls.sheet_names if file == special_file else st.session_state.common_sheet_names
+        )
+
+        st.subheader("Sheets")
+
+        # === Display sheet buttons: 2 horizontal rows ===
+        buttons_per_row = 5
+        total_rows = math.ceil(len(sheet_names) / buttons_per_row)
+
+        for row in range(total_rows):
+            cols = st.columns(buttons_per_row)
+            for i in range(buttons_per_row):
+                idx = row * buttons_per_row + i
+                if idx < len(sheet_names):
+                    sheet = sheet_names[idx]
+                    is_sheet_selected = sheet == st.session_state.selected_sheet
+                    btn_label = f"**{sheet}**" if is_sheet_selected else sheet
+                    if cols[i].button(btn_label, key=f"{file}_{sheet}"):
+                        st.session_state.selected_sheet = sheet
+
+        # === Show sheet content ===
+        if st.session_state.selected_sheet:
+            sheet = st.session_state.selected_sheet
+            st.markdown(f"### Sheet: `{sheet}`")
+            df = xls.parse(sheet)
+            st.dataframe(df)
+
+    except Exception as e:
+        st.error(f"Failed to read file: {e}")
+else:
+    st.write("Select a file from the sidebar to begin.")
