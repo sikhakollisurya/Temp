@@ -1,0 +1,24 @@
+# Sidebar: Searchable dropdown instead of long list
+st.sidebar.title("Excel Files")
+
+# Prepare display list and reverse map
+name_to_file = {v: k for k, v in display_names.items()}
+dropdown_names = list(name_to_file.keys())
+
+# Determine current index
+current_display_name = (
+    display_names[st.session_state.selected_file]
+    if st.session_state.selected_file in display_names
+    else dropdown_names[0]
+)
+
+selected_display_name = st.sidebar.selectbox(
+    "Choose a file", dropdown_names, index=dropdown_names.index(current_display_name)
+)
+
+selected_file = name_to_file[selected_display_name]
+
+# Update session state if new file is chosen
+if selected_file != st.session_state.selected_file:
+    st.session_state.selected_file = selected_file
+    st.session_state.selected_sheet = None
