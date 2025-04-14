@@ -1,0 +1,16 @@
+if selected_file != st.session_state.selected_file:
+    prev_sheet = st.session_state.selected_sheet
+    st.session_state.selected_file = selected_file
+
+    # Load new sheet names
+    try:
+        xls_temp = pd.ExcelFile(os.path.join(folder_path, selected_file))
+        new_sheet_names = xls_temp.sheet_names
+    except Exception as e:
+        new_sheet_names = []
+
+    # If previous sheet still exists in new file, keep it
+    if prev_sheet in new_sheet_names:
+        st.session_state.selected_sheet = prev_sheet
+    else:
+        st.session_state.selected_sheet = None
