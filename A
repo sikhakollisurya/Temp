@@ -1,0 +1,44 @@
+@echo off
+setlocal ENABLEEXTENSIONS
+
+REM === Set your network folder path ===
+set "NETWORK_PATH=\\NetworkShare\ExcelFolder"
+set "SCRIPT_NAME=your_streamlit_app.py"
+
+REM === Loop to find a free drive letter ===
+for %%D in (Z Y X W V U T S R Q P O N M L K J I H G F E D) do (
+    subst %%D: >nul 2>&1
+    if errorlevel 1 (
+        set "FREE_DRIVE=%%D:"
+        goto :found
+    )
+)
+
+echo No free drive letter found. Please close other drives and try again.
+pause
+exit /b
+
+:found
+echo Mapping network folder to %FREE_DRIVE%
+net use %FREE_DRIVE% "%NETWORK_PATH%" /persistent:no >nul 2>&1
+
+if errorlevel 1 (
+    echo Failed to map network folder. Make sure it's available.
+    pause
+    exit /b
+)
+
+cd /d %FREE_DRIVE%
+echo Launching Streamlit app...
+start cmd /k streamlit run "%SCRIPT_NAME%"
+
+REM Wait until user closes the window
+echo.
+echo Press any key after you're done to disconnect the folder.
+pause
+
+REM Cleanup
+net use %FREE_DRIVE% /delete >nul 2>&1
+echo Cleaned up. Done!
+
+endlocal
