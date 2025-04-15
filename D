@@ -1,0 +1,6 @@
+def run_app():
+    app_path = os.path.join(drive_letter, app_filename)
+    python_exe = os.path.join(sys._MEIPASS, "python.exe") if hasattr(sys, '_MEIPASS') else "python"
+    subprocess.Popen([python_exe, "-m", "streamlit", "run", app_path], shell=True)
+    time.sleep(2)
+    os.system("start http://localhost:8501")
