@@ -1,0 +1,28 @@
+import subprocess
+import os
+import ctypes
+import time
+
+# Configuration
+drive_letter = "Z:"
+network_path = r"\\Your\Network\Path"  # <-- CHANGE THIS
+app_filename = "app.py"
+
+# Map network drive
+def map_network_drive():
+    subprocess.call(f'net use {drive_letter} /delete', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    result = subprocess.call(f'net use {drive_letter} "{network_path}"', shell=True)
+    if result != 0:
+        ctypes.windll.user32.MessageBoxW(0, "Failed to connect to network drive.", "Error", 0)
+        exit(1)
+
+# Launch Streamlit
+def run_app():
+    app_path = os.path.join(drive_letter, app_filename)
+    subprocess.Popen(["streamlit", "run", app_path], shell=True)
+    time.sleep(2)  # Give Streamlit time to start
+    os.system("start http://localhost:8501")
+
+if __name__ == "__main__":
+    map_network_drive()
+    run_app()
