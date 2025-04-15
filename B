@@ -1,0 +1,37 @@
+@echo off
+setlocal ENABLEEXTENSIONS
+
+REM === Set your shared network path and Streamlit file ===
+set "NETWORK_PATH=\\NetworkShare\ExcelFolder"
+set "SCRIPT_NAME=your_streamlit_app.py"
+
+REM === Choose your preferred drive letter (auto or fixed) ===
+set "DRIVE=Z:"
+
+REM === Force unmap if the drive is already used ===
+net use %DRIVE% /delete >nul 2>&1
+
+REM === Try mapping the network folder ===
+net use %DRIVE% "%NETWORK_PATH%" /persistent:no >nul 2>&1
+
+if errorlevel 1 (
+    echo Failed to map network folder to %DRIVE%.
+    echo Please check if the network path is available.
+    pause
+    exit /b
+)
+
+cd /d %DRIVE%
+echo Launching Streamlit app...
+start "" streamlit run "%SCRIPT_NAME%"
+
+REM Wait for user to finish
+echo.
+echo Press any key after you're done to disconnect the folder...
+pause
+
+REM Cleanup again just in case
+net use %DRIVE% /delete >nul 2>&1
+echo Drive unmapped and cleaned up. Done!
+
+endlocal
