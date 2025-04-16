@@ -1,0 +1,27 @@
+@echo off
+setlocal
+
+REM === Step 1: Set your network shared folder path ===
+set "NETWORK_PATH=\\YourServer\ExcelViewerShared"
+
+REM === Step 2: Drive letter to map ===
+set "DRIVE_LETTER=Z:"
+
+REM === Step 3: Check if drive is already mapped ===
+if exist %DRIVE_LETTER%\ (
+    echo Drive %DRIVE_LETTER% is already mapped.
+) else (
+    echo Mapping %NETWORK_PATH% to %DRIVE_LETTER% ...
+    net use %DRIVE_LETTER% %NETWORK_PATH% /persistent:no
+    if errorlevel 1 (
+        echo Failed to map network drive. Please check the path and permissions.
+        pause
+        exit /b
+    )
+)
+
+REM === Step 4: Launch the Streamlit EXE ===
+start "" "%DRIVE_LETTER%\StreamlitExcelViewer.exe"
+
+endlocal
+exit
