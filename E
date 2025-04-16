@@ -1,0 +1,13 @@
+@echo off
+
+REM --- Map network drive (delete if already exists) ---
+net use Z: /delete >nul 2>&1
+net use Z: "\\YourServer\SharedExcelFolder"
+
+REM --- Navigate to the folder containing app.py ---
+cd /d "%~dp0"
+
+REM --- Launch Streamlit app ---
+start "" streamlit run app.py
+
+exit
