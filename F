@@ -1,0 +1,9 @@
+import os
+import subprocess
+
+# Auto-map Z: drive to your shared network folder (UNC path)
+network_path = r"\\YourServer\YourSharedFolder"
+try:
+    subprocess.run(f'net use Z: "{network_path}"', shell=True, check=True)
+except Exception as e:
+    print("Could not map network drive:", e)
