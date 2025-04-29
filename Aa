@@ -1,102 +1,41 @@
-Thanks for confirming. Since you've been granted access to SharePoint-hosted Excel files, and if your organization uses SSO (Single Sign-On) or Microsoft 365, the recommended modern approach is to use:
-
-msal or requests for OAuth 2.0 login.
-
-Microsoft Graph API to access SharePoint files.
-
-pandas and openpyxl to read/write Excel files.
-
-
-
----
-
-Step-by-Step: Read and Paste Excel Data from One SharePoint File to Another
-
-
----
-
-Step 1: Install Required Libraries
-
-pip install msal pandas openpyxl requests
-
-
----
-
-Step 2: Authenticate via Microsoft Identity Platform (OAuth 2.0)
-
-You’ll need:
-
-Tenant ID
-
-Client ID (register an app in Azure AD)
-
-Client Secret
-
-SharePoint site and file URLs
-
-
-
----
-
-Step 3: Example Python Code Using Microsoft Graph API
-
-import requests
-import pandas as pd
+from office365.runtime.auth.authentication_context import AuthenticationContext
+from office365.sharepoint.client_context import ClientContext
+from office365.sharepoint.files.file import File
 from io import BytesIO
-from msal import ConfidentialClientApplication
+import pandas as pd
 
-# Config
-tenant_id = 'your-tenant-id'
-client_id = 'your-client-id'
-client_secret = 'your-client-secret'
-site_id = 'your-site-id'  # Get from Graph Explorer
-source_file_id = 'source-file-id'
-target_file_id = 'target-file-id'
+# SharePoint and credentials
+site_url = "https://yourcompany.sharepoint.com/sites/yoursite"
+username = "your.email@yourcompany.com"
+password = "your_password"
 
-# Authentication
-authority = f"https://login.microsoftonline.com/{tenant_id}"
-scope = ["https://graph.microsoft.com/.default"]
+# File URLs (relative to the site)
+source_file_url = "/sites/yoursite/Shared Documents/Folder1/source.xlsx"
+target_file_url = "/sites/yoursite/Shared Documents/Folder2/target.xlsx"
 
-app = ConfidentialClientApplication(client_id, authority=authority, client_credential=client_secret)
-token = app.acquire_token_for_client(scopes=scope)
+# Authenticate
+ctx_auth = AuthenticationContext(site_url)
+if ctx_auth.acquire_token_for_user(username, password):
+    ctx = ClientContext(site_url, ctx_auth)
 
-headers = {
-    'Authorization': 'Bearer ' + token['access_token']
-}
+    # Read source Excel file
+    source_response = File.open_binary(ctx, source_file_url)
+    source_bytes = BytesIO(source_response.content)
+    df = pd.read_excel(source_bytes)
 
-# Download Source Excel
-source_url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{source_file_id}/content"
-response = requests.get(source_url, headers=headers)
-df = pd.read_excel(BytesIO(response.content))
+    print("Read data from source:")
+    print(df.head())
 
-# Optional: Modify df
-# df = df[['Column1', 'Column2']]  # if needed
+    # Convert DataFrame to Excel in-memory
+    output = BytesIO()
+    df.to_excel(output, index=False)
+    output.seek(0)
 
-# Save DataFrame to BytesIO
-output = BytesIO()
-df.to_excel(output, index=False)
-output.seek(0)
+    # Upload to target location
+    target_folder_url = "/sites/yoursite/Shared Documents/Folder2"
+    target_folder = ctx.web.get_folder_by_server_relative_url(target_folder_url)
+    target_folder.upload_file("target.xlsx", output.read()).execute_query()
 
-# Upload to Target File
-upload_url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{target_file_id}/content"
-upload_response = requests.put(upload_url, headers=headers, data=output.read())
-
-if upload_response.status_code == 200:
-    print("Successfully updated target file.")
+    print("Data pasted successfully into target Excel file.")
 else:
-    print("Upload failed:", upload_response.status_code, upload_response.text)
-
-
----
-
-Alternate: Using Office365-REST-Python-Client for simpler setup (non-OAuth)
-
-If you just have username/password access and no MFA, you can use the Office365-REST-Python-Client as I mentioned in the earlier message.
-
-Would you like me to help you:
-
-Register an app to get the client ID and secret?
-
-Or adapt it to your SharePoint file URLs directly?
-
-
+    print("Authentication failed.")
