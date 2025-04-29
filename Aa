@@ -1,0 +1,102 @@
+Thanks for confirming. Since you've been granted access to SharePoint-hosted Excel files, and if your organization uses SSO (Single Sign-On) or Microsoft 365, the recommended modern approach is to use:
+
+msal or requests for OAuth 2.0 login.
+
+Microsoft Graph API to access SharePoint files.
+
+pandas and openpyxl to read/write Excel files.
+
+
+
+---
+
+Step-by-Step: Read and Paste Excel Data from One SharePoint File to Another
+
+
+---
+
+Step 1: Install Required Libraries
+
+pip install msal pandas openpyxl requests
+
+
+---
+
+Step 2: Authenticate via Microsoft Identity Platform (OAuth 2.0)
+
+You’ll need:
+
+Tenant ID
+
+Client ID (register an app in Azure AD)
+
+Client Secret
+
+SharePoint site and file URLs
+
+
+
+---
+
+Step 3: Example Python Code Using Microsoft Graph API
+
+import requests
+import pandas as pd
+from io import BytesIO
+from msal import ConfidentialClientApplication
+
+# Config
+tenant_id = 'your-tenant-id'
+client_id = 'your-client-id'
+client_secret = 'your-client-secret'
+site_id = 'your-site-id'  # Get from Graph Explorer
+source_file_id = 'source-file-id'
+target_file_id = 'target-file-id'
+
+# Authentication
+authority = f"https://login.microsoftonline.com/{tenant_id}"
+scope = ["https://graph.microsoft.com/.default"]
+
+app = ConfidentialClientApplication(client_id, authority=authority, client_credential=client_secret)
+token = app.acquire_token_for_client(scopes=scope)
+
+headers = {
+    'Authorization': 'Bearer ' + token['access_token']
+}
+
+# Download Source Excel
+source_url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{source_file_id}/content"
+response = requests.get(source_url, headers=headers)
+df = pd.read_excel(BytesIO(response.content))
+
+# Optional: Modify df
+# df = df[['Column1', 'Column2']]  # if needed
+
+# Save DataFrame to BytesIO
+output = BytesIO()
+df.to_excel(output, index=False)
+output.seek(0)
+
+# Upload to Target File
+upload_url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drive/items/{target_file_id}/content"
+upload_response = requests.put(upload_url, headers=headers, data=output.read())
+
+if upload_response.status_code == 200:
+    print("Successfully updated target file.")
+else:
+    print("Upload failed:", upload_response.status_code, upload_response.text)
+
+
+---
+
+Alternate: Using Office365-REST-Python-Client for simpler setup (non-OAuth)
+
+If you just have username/password access and no MFA, you can use the Office365-REST-Python-Client as I mentioned in the earlier message.
+
+Would you like me to help you:
+
+Register an app to get the client ID and secret?
+
+Or adapt it to your SharePoint file URLs directly?
+
+
