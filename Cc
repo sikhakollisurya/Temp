@@ -1,0 +1,98 @@
+import re
+from collections import defaultdict
+
+def extract_assignments(sas_code):
+    assignment_pattern = re.compile(r'(\w+)\s*=\s*([^;]+);')
+    assignments = defaultdict(set)
+    reverse_assignments = defaultdict(set)
+
+    for line in sas_code.splitlines():
+        # Remove comments
+        line = re.sub(r'/\*.*?\*/', '', line)
+        line = re.sub(r'\*.*?;', '', line)
+
+        for lhs, rhs in assignment_pattern.findall(line):
+            rhs_vars = re.findall(r'\b\w+\b', rhs)
+            for var in rhs_vars:
+                if var != lhs:
+                    assignments[lhs].add(var)
+                    reverse_assignments[var].add(lhs)
+    return assignments, reverse_assignments
+
+def expand_dependencies(start_vars, mapping):
+    expanded = set(start_vars)
+    prev_size = -1
+    while len(expanded) != prev_size:
+        prev_size = len(expanded)
+        new_vars = set()
+        for var in expanded:
+            new_vars.update(mapping.get(var, set()))
+        expanded.update(new_vars)
+    return expanded
+
+def find_if_conditions(sas_code, param):
+    if_conditions = []
+    if_pattern = re.compile(r'\bif\b\s+([^;]*\b' + re.escape(param) + r'\b[^;]*);', re.IGNORECASE)
+    for line in sas_code.splitlines():
+        match = if_pattern.search(line)
+        if match:
+            if_conditions.append(line.strip())
+    return if_conditions
+
+def find_actions_from_conditions(conditions):
+    actions = set()
+    for cond in conditions:
+        if 'then' in cond:
+            action_part = cond.split('then')[-1]
+            actions.update(re.findall(r'\b\w+\b', action_part))
+    return actions
+
+# Test SAS code
+sas_code = """
+data temp;
+    x = a + b;
+    y = x * 2;
+    z = y + c;
+    p = z + 5;
+    if z > 10 and d = 5 then output;
+    if p > 100 then final_output;
+run;
+"""
+
+target_param = "z"
+
+# Extract both forward and reverse assignment graphs
+assignments, reverse_assignments = extract_assignments(sas_code)
+
+# Expand full upstream (what affects the parameter)
+upstream_vars = expand_dependencies([target_param], assignments)
+
+# Find conditions where this param appears
+if_conditions = find_if_conditions(sas_code, target_param)
+
+# Downstream: find variables that depend on this one, directly and transitively
+downstream_vars = expand_dependencies([target_param], reverse_assignments)
+
+# Find what downstream variables appear in `if` conditions
+all_if_conditions = []
+affected_outputs = set()
+for var in downstream_vars:
+    conds = find_if_conditions(sas_code, var)
+    all_if_conditions.extend(conds)
+    affected_outputs.update(find_actions_from_conditions(conds))
+
+# Final output
+print(f"\n[ANALYSIS FOR PARAMETER: {target_param}]")
+print(f"Upstream variables (affecting {target_param}): {sorted(upstream_vars)}")
+print(f"Downstream variables (affected by {target_param}): {sorted(downstream_vars)}")
+if if_conditions:
+    print(f"\nDirect conditions involving {target_param}:")
+    for cond in if_conditions:
+        print(f"  - {cond}")
+if all_if_conditions:
+    print(f"\nConditions triggered by downstream variables:")
+    for cond in all_if_conditions:
+        print(f"  - {cond}")
+    print(f"Downstream effects (like output triggered): {affected_outputs}")
+else:
+    print("\nNo downstream condition triggers found.")
