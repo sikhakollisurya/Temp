@@ -1,73 +1,76 @@
 import re
 from collections import defaultdict, deque
 
-def extract_dependencies(sas_code):
-    dep_graph = defaultdict(set)
-    reverse_dep_graph = defaultdict(set)
-
-    # Match assignment or conditional logic
+def extract_assignments(sas_code):
     assignment_pattern = re.compile(r'(\w+)\s*=\s*([^;]+);')
-    if_pattern = re.compile(r'\bif\b\s+([^;]+);', re.IGNORECASE)
+    assignments = defaultdict(set)
 
     for line in sas_code.splitlines():
-        # Remove comments
         line = re.sub(r'/\*.*?\*/', '', line)
         line = re.sub(r'\*.*?;', '', line)
 
-        # Extract assignments
         for lhs, rhs in assignment_pattern.findall(line):
             vars_in_rhs = re.findall(r'\b\w+\b', rhs)
             for var in vars_in_rhs:
                 if var != lhs:
-                    dep_graph[lhs].add(var)
-                    reverse_dep_graph[var].add(lhs)
+                    assignments[lhs].add(var)
+    return assignments
 
-        # Extract conditions
-        for condition in if_pattern.findall(line):
-            vars_in_if = re.findall(r'\b\w+\b', condition)
-            for var in vars_in_if:
-                dep_graph['<if_condition>'].add(var)
-                reverse_dep_graph[var].add('<if_condition>')
-
-    return dep_graph, reverse_dep_graph
-
-def trace_dependencies(param, dep_graph, reverse_dep_graph):
-    upstream = set()
-    downstream = set()
-
-    # Upstream (what param depends on)
+def trace_full_upstream(param, assignments):
+    visited = set()
     queue = deque([param])
     while queue:
-        current = queue.popleft()
-        for dep in dep_graph.get(current, []):
-            if dep not in upstream:
-                upstream.add(dep)
+        var = queue.popleft()
+        for dep in assignments.get(var, []):
+            if dep not in visited:
+                visited.add(dep)
                 queue.append(dep)
+    return visited
 
-    # Downstream (what depends on param)
-    queue = deque([param])
-    while queue:
-        current = queue.popleft()
-        for dep in reverse_dep_graph.get(current, []):
-            if dep not in downstream:
-                downstream.add(dep)
-                queue.append(dep)
+def find_if_conditions(sas_code, param):
+    if_conditions = []
+    if_pattern = re.compile(r'\bif\b\s+([^;]*\b' + re.escape(param) + r'\b[^;]*);', re.IGNORECASE)
+    for line in sas_code.splitlines():
+        match = if_pattern.search(line)
+        if match:
+            if_conditions.append(line.strip())
+    return if_conditions
 
-    return upstream, downstream
+def find_actions_from_conditions(conditions):
+    actions = set()
+    for cond in conditions:
+        action_part = cond.split('then')[-1]
+        actions.update(re.findall(r'\b\w+\b', action_part))
+    return actions
 
-# Example usage
+# Example SAS code
 sas_code = """
 data temp;
     x = a + b;
     y = x * 2;
     z = y + c;
-    if z > 10 then output;
+    if z > 10 and d = 5 then output;
 run;
 """
 
-param = "y"
-dep_graph, reverse_dep_graph = extract_dependencies(sas_code)
-upstream, downstream = trace_dependencies(param, dep_graph, reverse_dep_graph)
+target_param = "z"
 
-print(f"Upstream of {param}: {upstream}")
-print(f"Downstream of {param}: {downstream}")
+# Step 1: Get full upstream dependencies
+assignments = extract_assignments(sas_code)
+upstream_vars = trace_full_upstream(target_param, assignments)
+
+# Step 2: Check if param appears in an if condition
+if_conditions = find_if_conditions(sas_code, target_param)
+
+# Step 3: Determine what actions occur due to the if condition
+affected_by_param = find_actions_from_conditions(if_conditions)
+
+print(f"\n[ANALYSIS FOR PARAMETER: {target_param}]")
+print(f"Upstream variables (affecting {target_param}): {upstream_vars}")
+if if_conditions:
+    print(f"Conditions involving {target_param}:")
+    for cond in if_conditions:
+        print(f"  - {cond}")
+    print(f"Downstream effect (due to {target_param} in condition): {affected_by_param}")
+else:
+    print(f"No conditions involving {target_param}.")
