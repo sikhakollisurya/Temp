@@ -1,32 +1,30 @@
 import re
-from collections import defaultdict, deque
+from collections import defaultdict
 
 def extract_assignments(sas_code):
     assignment_pattern = re.compile(r'(\w+)\s*=\s*([^;]+);')
     assignments = defaultdict(set)
 
     for line in sas_code.splitlines():
-        line = re.sub(r'/\*.*?\*/', '', line)  # remove block comments
-        line = re.sub(r'\*.*?;', '', line)     # remove line comments
+        # Clean comments
+        line = re.sub(r'/\*.*?\*/', '', line)
+        line = re.sub(r'\*.*?;', '', line)
 
         for lhs, rhs in assignment_pattern.findall(line):
-            vars_in_rhs = re.findall(r'\b\w+\b', rhs)
-            for var in vars_in_rhs:
+            rhs_vars = re.findall(r'\b\w+\b', rhs)
+            for var in rhs_vars:
                 if var != lhs:
                     assignments[lhs].add(var)
     return assignments
 
-def trace_full_upstream(param, assignments):
-    visited = set()
-    queue = deque([param])
-    while queue:
-        var = queue.popleft()
-        for dep in assignments.get(var, []):
-            if dep not in visited:
-                visited.add(dep)
-                queue.append(dep)
-                # Also explore further up from this dependency
-                queue.extend(assignments.get(dep, []))
+def trace_upstream_recursive(var, assignments, visited=None):
+    if visited is None:
+        visited = set()
+
+    for dep in assignments.get(var, []):
+        if dep not in visited:
+            visited.add(dep)
+            trace_upstream_recursive(dep, assignments, visited)
     return visited
 
 def find_if_conditions(sas_code, param):
@@ -46,7 +44,7 @@ def find_actions_from_conditions(conditions):
             actions.update(re.findall(r'\b\w+\b', action_part))
     return actions
 
-# Example SAS code
+# Test SAS Code
 sas_code = """
 data temp;
     x = a + b;
@@ -58,24 +56,17 @@ run;
 
 target_param = "z"
 
-# Step 1: Get all assignments
 assignments = extract_assignments(sas_code)
-
-# Step 2: Trace full upstream dependencies
-upstream_vars = trace_full_upstream(target_param, assignments)
-
-# Step 3: Find `if` conditions where target param is used
+upstream_vars = trace_upstream_recursive(target_param, assignments)
 if_conditions = find_if_conditions(sas_code, target_param)
-
-# Step 4: Get actions that depend on that condition
-affected_by_param = find_actions_from_conditions(if_conditions)
+downstream_effects = find_actions_from_conditions(if_conditions)
 
 print(f"\n[ANALYSIS FOR PARAMETER: {target_param}]")
 print(f"Upstream variables (affecting {target_param}): {upstream_vars}")
 if if_conditions:
-    print(f"Conditions involving {target_param}:")
+    print("Conditions involving parameter:")
     for cond in if_conditions:
         print(f"  - {cond}")
-    print(f"Downstream effect (due to {target_param} in condition): {affected_by_param}")
+    print(f"Downstream effect (because of {target_param} in condition): {downstream_effects}")
 else:
-    print(f"No conditions involving {target_param}.")
+    print(f"No conditions involving parameter.")
