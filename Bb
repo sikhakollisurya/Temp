@@ -1,0 +1,73 @@
+import re
+from collections import defaultdict, deque
+
+def extract_dependencies(sas_code):
+    dep_graph = defaultdict(set)
+    reverse_dep_graph = defaultdict(set)
+
+    # Match assignment or conditional logic
+    assignment_pattern = re.compile(r'(\w+)\s*=\s*([^;]+);')
+    if_pattern = re.compile(r'\bif\b\s+([^;]+);', re.IGNORECASE)
+
+    for line in sas_code.splitlines():
+        # Remove comments
+        line = re.sub(r'/\*.*?\*/', '', line)
+        line = re.sub(r'\*.*?;', '', line)
+
+        # Extract assignments
+        for lhs, rhs in assignment_pattern.findall(line):
+            vars_in_rhs = re.findall(r'\b\w+\b', rhs)
+            for var in vars_in_rhs:
+                if var != lhs:
+                    dep_graph[lhs].add(var)
+                    reverse_dep_graph[var].add(lhs)
+
+        # Extract conditions
+        for condition in if_pattern.findall(line):
+            vars_in_if = re.findall(r'\b\w+\b', condition)
+            for var in vars_in_if:
+                dep_graph['<if_condition>'].add(var)
+                reverse_dep_graph[var].add('<if_condition>')
+
+    return dep_graph, reverse_dep_graph
+
+def trace_dependencies(param, dep_graph, reverse_dep_graph):
+    upstream = set()
+    downstream = set()
+
+    # Upstream (what param depends on)
+    queue = deque([param])
+    while queue:
+        current = queue.popleft()
+        for dep in dep_graph.get(current, []):
+            if dep not in upstream:
+                upstream.add(dep)
+                queue.append(dep)
+
+    # Downstream (what depends on param)
+    queue = deque([param])
+    while queue:
+        current = queue.popleft()
+        for dep in reverse_dep_graph.get(current, []):
+            if dep not in downstream:
+                downstream.add(dep)
+                queue.append(dep)
+
+    return upstream, downstream
+
+# Example usage
+sas_code = """
+data temp;
+    x = a + b;
+    y = x * 2;
+    z = y + c;
+    if z > 10 then output;
+run;
+"""
+
+param = "y"
+dep_graph, reverse_dep_graph = extract_dependencies(sas_code)
+upstream, downstream = trace_dependencies(param, dep_graph, reverse_dep_graph)
+
+print(f"Upstream of {param}: {upstream}")
+print(f"Downstream of {param}: {downstream}")
