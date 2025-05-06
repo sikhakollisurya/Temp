@@ -1,0 +1,131 @@
+**Internship Report**
+
+**Title:** Work Experience Report at Wells Fargo (Feb 2025 – May 2025)
+
+**Candidate:** Sikhakolli Surya
+
+**Background:**
+As a final-year Computer Science student with a strong foundation in programming, data analysis, and system development, I was privileged to undertake an internship with Wells Fargo, a leading global financial services company. This report details the tasks, learnings, and contributions made during the internship, structured in a weekly logbook style and enriched with in-depth analysis, technical descriptions, and reflections.
+
+---
+
+### **1. Onboarding and Initial Setup (10/02/2025 – 24/02/2025)**
+
+**Week 1 (10/02/2025 - 16/02/2025):**
+
+* Participated in an induction session to understand the company culture, compliance policies, and IT security practices.
+* Met with the reporting manager and received an overview of the department's responsibilities.
+
+**Week 2 (17/02/2025 - 21/02/2025):**
+
+* Completed mandatory training modules on corporate ethics, cybersecurity, data handling, and confidentiality.
+* Underwent technical training in SQL and Python, fundamental tools for data analysis and automation tasks.
+
+**24/02/2025:**
+
+* Gained access to the internal data systems. This included receiving login credentials for secure platforms such as Dremio, SharePoint, RDS, and email systems.
+
+**Note on Permissions:**
+Access in enterprise environments is highly regulated for security and compliance. Permissions were provisioned by the IT department based on my role, and access was granted after proper authorization workflows were completed.
+
+---
+
+### **2. Dashboard Exploration and Data Mapping (10/03/2025 – 28/03/2025)**
+
+**Week 3 (10/03/2025 - 14/03/2025):**
+
+* Acquired access to **Dremio**, a data-as-a-service platform used for querying large datasets.
+* Reviewed the **Credit Alerts Dashboard**, a key reporting tool used by financial analysts.
+* Understood how data attributes were pulled from various systems and displayed.
+
+**Week 4 (17/03/2025 - 21/03/2025):**
+
+* Worked on creating new mappings for credit alert metrics.
+* Analyzed the flow of data from Excel files into the dashboard and established logical derivations.
+
+**Week 5 (24/03/2025 - 28/03/2025):**
+
+* Completed the mapping of the Credit Alerts Dashboard.
+* Ensured all derivations were correctly documented for future maintainability.
+* Explored external databases like **CoRS** (Corporate Risk Systems) and **Bloomberg Terminal**.
+
+**Tools Used:** Excel, Dremio, Email, Bloomberg
+
+**Purpose of Access:**
+Exploring these databases required special permissions due to the sensitivity of financial data. Access to Bloomberg was monitored and read-only.
+
+---
+
+### **3. Learning & Documentation (01/04/2025 – 04/04/2025)**
+
+**Week 6:**
+
+* Completed the "Foundation of Credit" learning path via the internal learning platform "Develop You."
+
+* Compiled insights on CoRS and Bloomberg:
+
+  * **What data is present.**
+  * **Its source.**
+  * **Relevant stakeholders and contacts.**
+  * **Additional insights via external links.**
+
+* Wrote metadata for the Credit Alerts Dashboard.
+
+**Why Metadata Matters:**
+Metadata helps analysts and engineers understand the purpose, source, transformation, and relevance of data attributes. It is essential for traceability and audit purposes.
+
+---
+
+### **4. Development Work and Streamlit Integration (07/04/2025 – 25/04/2025)**
+
+**Week 7 (07/04/2025 - 11/04/2025):**
+
+* Cross-verified data consistency between the dashboard and RDS (Relational Database Service).
+* Made a Streamlit-based Excel viewer app tailored to Ravi sir’s requirements.
+
+**Week 8 (14/04/2025 - 18/04/2025):**
+
+* Customized the **CRIT Tracker**:
+
+  * Removed timestamps.
+  * Added monthly filters to violation pages.
+* Attempted to embed a virtual environment using Python to run in non-Python systems.
+
+**Note on Hosting Limitations:**
+Due to Wells Fargo’s IT policies, the hosting of Python apps via shared networks is restricted. Therefore, although technically functional, the solution couldn’t be deployed.
+
+**Week 9 (21/04/2025 - 25/04/2025):**
+
+* Studied internal reports related to Credit Cards Line of Business (LOB).
+* Understood credit operations, fraud analysis, and transaction validation workflows.
+
+**Tools/Tech:** Python, Streamlit, Excel, RDS, CRIT Tracker, Internal Share Drives
+
+---
+
+### **5. Automation & Technical Contributions (28/04/2025 – 09/05/2025)**
+
+**Week 10 (28/04/2025 - 02/05/2025):**
+
+* Tried automating SAS-based reports using Python scripts.
+* Coordinated with Ravi sir to understand the scope of automation.
+
+**Week 11 (05/05/2025 - 09/05/2025):**
+
+* Worked on automating SharePoint tasks using Python for Sagar’s deliverables.
+* Focused on data extraction, formatting, and publishing of daily status reports.
+
+**Security Considerations:**
+Automation scripts required authentication tokens and read-write permissions. These were handled securely using credential vaults and encrypted keys.
+
+---
+
+### **Conclusion**
+
+Over the course of the internship, I experienced a real-world data pipeline from extraction to visualization. I contributed to both development and documentation, enhancing reporting systems and improving internal processes. I also learned the importance of data governance, stakeholder collaboration, and enterprise-grade security.
+
+This internship not only strengthened my technical foundation in SQL, Python, and dashboarding but also introduced me to financial domain operations such as credit alerts, risk systems, and regulatory compliance.
+
+---
+
+Let me know if you'd like to add a cover page, abstract, glossary, or expand any section further.
