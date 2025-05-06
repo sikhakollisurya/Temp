@@ -1,0 +1,99 @@
+import xlwings as xw
+from pptx import Presentation
+from pptx.chart.data import CategoryChartData
+from pptx.chart.plot import LineChart
+from pptx.chart.plot import BarChart
+from pptx.chart.plot import PieChart
+from pptx.util import Inches
+
+class ExcelToPPTChartRecreation:
+    def __init__(self, excel_file, ppt_file):
+        self.excel_file = excel_file
+        self.ppt_file = ppt_file
+        self.app = xw.App(visible=False)
+        self.wb = self.app.books.open(excel_file)
+        self.prs = Presentation(ppt_file)
+
+    def extract_chart_data(self, sheet_name, chart_index):
+        """Extract data from the specified Excel chart"""
+        ws = self.wb.sheets[sheet_name]
+        chart = ws.charts[chart_index]
+        
+        # Extract chart data
+        chart_data = {
+            'chart_type': chart.chart_type,
+            'categories': [cell.value for cell in chart.chart_data.categories],
+            'series': [],
+        }
+
+        # Extract data for each series in the chart
+        for series in chart.chart_data.series:
+            series_data = {
+                'name': series.name,
+                'values': [cell.value for cell in series.values]
+            }
+            chart_data['series'].append(series_data)
+        
+        return chart_data
+
+    def recreate_chart_in_ppt(self, slide_index, chart_data):
+        """Recreate chart in PowerPoint from extracted data"""
+        slide = self.prs.slides[slide_index]
+        
+        # Create chart in PowerPoint
+        chart_data_obj = CategoryChartData()
+        chart_data_obj.categories = chart_data['categories']
+        
+        for series in chart_data['series']:
+            chart_data_obj.add_series(series['name'], series['values'])
+        
+        # Choose chart type based on Excel chart type
+        chart = slide.shapes.add_chart(
+            chart_type=chart_data['chart_type'],  # Excel chart type
+            x=Inches(1), y=Inches(1), width=Inches(6), height=Inches(4), 
+            chart_data=chart_data_obj
+        )
+
+        # Adjust properties based on chart type, for example, change plot type if needed
+        if chart_data['chart_type'] == 'line':
+            chart.chart.plots[0].has_legend = True  # Add a legend if it's a line chart
+
+    def save_ppt(self):
+        """Save the PowerPoint file"""
+        self.prs.save(self.ppt_file)
+
+    def close_excel(self):
+        """Close Excel application"""
+        self.wb.close()
+        self.app.quit()
+
+    def transfer_charts(self, chart_data):
+        """
+        Transfer multiple charts from Excel to PowerPoint.
+        
+        :param chart_data: A list of tuples with (sheet_name, chart_index, slide_index)
+        """
+        for sheet_name, chart_index, slide_index in chart_data:
+            chart_info = self.extract_chart_data(sheet_name, chart_index)
+            self.recreate_chart_in_ppt(slide_index, chart_info)
+        
+        self.save_ppt()
+        self.close_excel()
+
+
+# Define Excel and PowerPoint file paths
+excel_file = "path_to_your_excel_file.xlsx"
+ppt_file = "path_to_your_presentation.pptx"
+
+# Define chart data: (sheet_name, chart_index, slide_index)
+# (Chart index in Excel, Slide index in PowerPoint)
+chart_data = [
+    ("Sheet1", 0, 0),  # Copy chart 0 from Sheet1 and paste it into slide 0
+    ("Sheet1", 1, 1),  # Copy chart 1 from Sheet1 and paste it into slide 1
+]
+
+# Initialize and transfer charts
+excel_to_ppt = ExcelToPPTChartRecreation(excel_file, ppt_file)
+excel_to_ppt.transfer_charts(chart_data)
+
+print("Charts successfully transferred and recreated in PowerPoint!")
