@@ -1,0 +1,36 @@
+Sub InsertSVGintoPlaceholder()
+    Dim pptSlide As slide
+    Dim pptShape As shape
+    Dim svgPath As String
+    Dim newShape As shape
+    Dim i As Integer
+
+    ' Set your SVG file path here
+    svgPath = "C:\Path\To\Your\Chart.svg"
+
+    ' Loop through each slide (or specify a single one)
+    For Each pptSlide In ActivePresentation.Slides
+        For i = 1 To pptSlide.Shapes.Count
+            Set pptShape = pptSlide.Shapes(i)
+            
+            ' Check if the shape is a picture placeholder
+            If pptShape.Type = msoPlaceholder Then
+                If pptShape.PlaceholderFormat.Type = ppPlaceholderPicture Then
+                    ' Insert SVG at the placeholder position
+                    Set newShape = pptSlide.Shapes.AddPicture( _
+                        FileName:=svgPath, _
+                        LinkToFile:=msoFalse, _
+                        SaveWithDocument:=msoTrue, _
+                        Left:=pptShape.Left, _
+                        Top:=pptShape.Top, _
+                        Width:=pptShape.Width, _
+                        Height:=pptShape.Height)
+                    
+                    ' Optionally remove the original placeholder
+                    pptShape.Delete
+                    Exit For
+                End If
+            End If
+        Next i
+    Next pptSlide
+End Sub
