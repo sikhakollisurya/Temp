@@ -1,0 +1,37 @@
+Sub InsertSVGsFromFolder()
+    Dim pptSlide As Slide
+    Dim placeholder As Shape
+    Dim imgShape As Shape
+    Dim folderPath As String
+    Dim imgPath As String
+    Dim count As Integer
+
+    ' Update this to the folder containing image1.svg to image5.svg
+    folderPath = "C:\Path\To\Your\Folder\"
+
+    Set pptSlide = ActivePresentation.Slides(1)
+    count = 1
+
+    For Each placeholder In pptSlide.Shapes
+        If placeholder.Type = msoPlaceholder Then
+            If placeholder.PlaceholderFormat.Type = ppPlaceholderPicture Then
+                If count <= 5 Then
+                    imgPath = folderPath & "image" & count & ".svg"
+
+                    Set imgShape = pptSlide.Shapes.AddPicture( _
+                        FileName:=imgPath, _
+                        LinkToFile:=msoFalse, _
+                        SaveWithDocument:=msoTrue, _
+                        Left:=placeholder.Left, _
+                        Top:=placeholder.Top, _
+                        Width:=placeholder.Width, _
+                        Height:=placeholder.Height)
+
+                    count = count + 1
+                End If
+            End If
+        End If
+    Next placeholder
+
+    MsgBox "5 SVGs inserted from folder."
+End Sub
