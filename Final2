@@ -1,0 +1,64 @@
+Sub InsertSVGsIntoPlaceholders()
+    Dim pptSlide As slide
+    Dim pptShape As shape
+    Dim newShape As shape
+    Dim svgPaths(1 To 6) As String
+    Dim placeholderIndex As Integer
+    Dim aspectRatio As Double
+    Dim scaleFactor As Double
+    Dim offsetX As Double, offsetY As Double
+    Dim imgWidth As Double, imgHeight As Double
+
+    ' Update with your actual SVG paths
+    svgPaths(1) = "C:\Path\Chart1.svg"
+    svgPaths(2) = "C:\Path\Chart2.svg"
+    svgPaths(3) = "C:\Path\Chart3.svg"
+    svgPaths(4) = "C:\Path\Chart4.svg"
+    svgPaths(5) = "C:\Path\Chart5.svg"
+    svgPaths(6) = "C:\Path\Chart6.svg"
+
+    ' Insert into first slide only
+    Set pptSlide = ActivePresentation.Slides(1)
+
+    placeholderIndex = 1
+
+    For Each pptShape In pptSlide.Shapes
+        If pptShape.Type = msoPlaceholder Then
+            If pptShape.PlaceholderFormat.Type = ppPlaceholderPicture Then
+                If placeholderIndex <= 6 Then
+                    ' Insert SVG at placeholder temporarily
+                    Set newShape = pptSlide.Shapes.AddPicture( _
+                        FileName:=svgPaths(placeholderIndex), _
+                        LinkToFile:=msoFalse, _
+                        SaveWithDocument:=msoTrue, _
+                        Left:=0, Top:=0, _
+                        Width:=-1, Height:=-1) ' Auto-size
+
+                    ' Fit the SVG inside the placeholder while preserving aspect ratio
+                    imgWidth = newShape.Width
+                    imgHeight = newShape.Height
+
+                    If imgWidth / imgHeight > pptShape.Width / pptShape.Height Then
+                        scaleFactor = pptShape.Width / imgWidth
+                    Else
+                        scaleFactor = pptShape.Height / imgHeight
+                    End If
+
+                    newShape.Width = imgWidth * scaleFactor
+                    newShape.Height = imgHeight * scaleFactor
+
+                    ' Center the image within the placeholder
+                    offsetX = pptShape.Left + (pptShape.Width - newShape.Width) / 2
+                    offsetY = pptShape.Top + (pptShape.Height - newShape.Height) / 2
+
+                    newShape.Left = offsetX
+                    newShape.Top = offsetY
+
+                    placeholderIndex = placeholderIndex + 1
+                End If
+            End If
+        End If
+    Next pptShape
+
+    MsgBox "Inserted all SVGs into placeholders.", vbInformation
+End Sub
