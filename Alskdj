@@ -1,0 +1,70 @@
+import xlwings as xw
+import pyautogui
+import time
+from pptx import Presentation
+from pptx.util import Inches
+
+class ExcelToPPT:
+    def __init__(self, excel_file, ppt_file):
+        self.excel_file = excel_file
+        self.ppt_file = ppt_file
+        self.app = xw.App(visible=False)
+        self.wb = self.app.books.open(excel_file)
+        self.prs = Presentation(ppt_file)
+
+    def copy_chart(self, sheet_name, chart_index):
+        """Copy chart from Excel sheet"""
+        ws = self.wb.sheets[sheet_name]
+        chart = ws.charts[chart_index]
+        chart.api.Copy()  # Copies the chart as an object (retain quality)
+        time.sleep(1)
+
+    def paste_chart_to_ppt(self, slide_index, placeholder_index):
+        """Paste chart into PowerPoint placeholder"""
+        slide = self.prs.slides[slide_index]
+        placeholder = slide.placeholders[placeholder_index]
+        
+        # Move the placeholder to a position if needed
+        placeholder.left = Inches(1)
+        placeholder.top = Inches(1)
+        
+        pyautogui.hotkey('ctrl', 'v')  # Simulate paste
+        time.sleep(1)  # Allow time for paste to complete
+
+    def save_ppt(self):
+        """Save the PowerPoint file"""
+        self.prs.save(self.ppt_file)
+
+    def close_excel(self):
+        """Close Excel application"""
+        self.wb.close()
+        self.app.quit()
+
+    def transfer_charts(self, chart_data):
+        """
+        Transfer multiple charts from Excel to PowerPoint.
+        
+        :param chart_data: A list of tuples with (sheet_name, chart_index, slide_index, placeholder_index)
+        """
+        for sheet_name, chart_index, slide_index, placeholder_index in chart_data:
+            self.copy_chart(sheet_name, chart_index)
+            self.paste_chart_to_ppt(slide_index, placeholder_index)
+        self.save_ppt()
+        self.close_excel()
+
+# Define Excel and PowerPoint file paths
+excel_file = "path_to_your_excel_file.xlsx"
+ppt_file = "path_to_your_presentation.pptx"
+
+# Define chart data: (sheet_name, chart_index, slide_index, placeholder_index)
+# (Chart index in Excel, Slide index in PowerPoint, Placeholder index in PowerPoint)
+chart_data = [
+    ("Sheet1", 0, 0, 0),  # Copy chart 0 from Sheet1 and paste it into placeholder 0 of slide 0
+    ("Sheet1", 1, 1, 1),  # Copy chart 1 from Sheet1 and paste it into placeholder 1 of slide 1
+]
+
+# Initialize and transfer charts
+excel_to_ppt = ExcelToPPT(excel_file, ppt_file)
+excel_to_ppt.transfer_charts(chart_data)
+
+print("Charts successfully transferred from Excel to PowerPoint!")
