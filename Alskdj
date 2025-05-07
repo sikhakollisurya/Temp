@@ -1,52 +1,94 @@
 import xlwings as xw
-import pyautogui
 import time
-import os
+from pptx import Presentation
+from pptx.util import Inches
+import pyautogui
 
-# Function to copy the chart from Excel (as an object)
-def copy_chart_in_excel(excel_file, sheet_name, chart_index):
-    app = xw.App(visible=True)
-    wb = app.books.open(excel_file)
-    ws = wb.sheets[sheet_name]
-    
-    # Select the chart object in Excel
-    chart = ws.charts[chart_index]
-    
-    # Copy the chart as a picture (vectorized)
-    chart.api.Copy()  # Directly copies as an object (retain quality)
-    
-    # Wait for clipboard action to complete
-    time.sleep(1)
-    wb.close()
-    app.quit()
+class ExcelToPPTChartCopy:
+    def __init__(self, excel_file, ppt_file, sheet_name):
+        self.excel_file = excel_file
+        self.ppt_file = ppt_file
+        self.sheet_name = sheet_name
+        self.app = xw.App(visible=False)
+        self.prs = Presentation(ppt_file)
+        self.excel_wb = None
 
-# Function to paste the chart into PowerPoint
-def paste_chart_into_ppt(ppt_file):
-    # Open PowerPoint using pyautogui (you can switch with Alt+Tab if necessary)
-    pyautogui.hotkey('alt', 'tab')  # Switch to PowerPoint
-    
-    # Give some time for PowerPoint to come to the foreground
-    time.sleep(1)
-    
-    # Simulate Ctrl + V to paste the chart
-    pyautogui.hotkey('ctrl', 'v')
-    time.sleep(1)  # Allow time for the chart to paste
+    def open_excel(self):
+        """Open the Excel file and sheet."""
+        try:
+            self.excel_wb = self.app.books.open(self.excel_file)
+            self.sheet = self.excel_wb.sheets[self.sheet_name]
+        except Exception as e:
+            print(f"Error opening Excel file: {e}")
+            self.close_excel()
+            raise
 
-    # Optionally, save and close PowerPoint after paste
-    pyautogui.hotkey('ctrl', 's')  # Save
-    time.sleep(1)
-    pyautogui.hotkey('ctrl', 'w')  # Close PowerPoint
+    def close_excel(self):
+        """Close the Excel application"""
+        if self.excel_wb is not None:
+            self.excel_wb.close()
+        self.app.quit()
 
-# Define paths and parameters
+    def extract_and_copy_charts(self):
+        """Extract charts from the sheet and copy them to PowerPoint."""
+        try:
+            charts = self.sheet.charts
+            chart_data = []
+            for chart_index, chart in enumerate(charts):
+                chart.api.Copy()  # Copy chart as an Excel object (preserves quality)
+                chart_data.append(chart_index)  # Store chart index for further use
+            return chart_data
+        except Exception as e:
+            print(f"Error extracting charts: {e}")
+            self.close_excel()
+            raise
+
+    def paste_charts_to_ppt(self, chart_data):
+        """Paste charts into PowerPoint placeholders."""
+        try:
+            slide = self.prs.slides[0]  # Assuming charts are to be placed on the first slide
+            placeholders = slide.placeholders  # Get placeholders in the first slide
+
+            for i, chart_index in enumerate(chart_data):
+                chart = self.sheet.charts[chart_index]  # Get chart by index
+                chart.api.Copy()  # Copy chart
+                pyautogui.hotkey('ctrl', 'v')  # Simulate pasting into the active placeholder
+                time.sleep(1)  # Wait for paste to complete
+                placeholder = placeholders[i]  # Get the corresponding placeholder
+                placeholder.left = Inches(1)
+                placeholder.top = Inches(1)
+                placeholder.width = Inches(6)
+                placeholder.height = Inches(4)
+            
+            self.save_ppt()
+
+        except Exception as e:
+            print(f"Error pasting charts into PowerPoint: {e}")
+            self.close_excel()
+            raise
+
+    def save_ppt(self):
+        """Save the PowerPoint file."""
+        self.prs.save(self.ppt_file)
+
+    def transfer_charts(self):
+        """Main method to open files, extract charts, and transfer them."""
+        try:
+            self.open_excel()
+            chart_data = self.extract_and_copy_charts()
+            self.paste_charts_to_ppt(chart_data)
+        except Exception as e:
+            print(f"Error during chart transfer: {e}")
+            raise
+        finally:
+            self.close_excel()
+            print("Process complete.")
+
+# Example Usage:
 excel_file = "path_to_your_excel_file.xlsx"
-sheet_name = "Sheet1"  # Adjust based on your sheet
-chart_index = 0  # Index of the chart in Excel
-ppt_file = "path_to_your_presentation.pptx"  # PowerPoint file path
+ppt_file = "path_to_your_presentation.pptx"
+sheet_name = "Sheet1"
 
-# Copy the chart from Excel
-copy_chart_in_excel(excel_file, sheet_name, chart_index)
-
-# Paste the chart into PowerPoint
-paste_chart_into_ppt(ppt_file)
-
-print("Chart successfully copied and pasted into PowerPoint!")
+# Initialize and transfer charts
+excel_to_ppt = ExcelToPPTChartCopy(excel_file, ppt_file, sheet_name)
+excel_to_ppt.transfer_charts()
