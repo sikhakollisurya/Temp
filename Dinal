@@ -1,0 +1,22 @@
+import win32com.client
+
+# Path to your .pptm file
+pptm_path = r"C:\Path\To\YourFile.pptm"
+macro_name = "Module1.InsertSVGsFromFolder"  # Update with actual module and macro name
+
+# Launch PowerPoint
+powerpoint = win32com.client.Dispatch("PowerPoint.Application")
+powerpoint.Visible = True
+
+# Open the PPTM file
+presentation = powerpoint.Presentations.Open(pptm_path, WithWindow=False)
+
+# Run the macro
+powerpoint.Run(macro_name)
+
+# Save and close
+presentation.Save()
+presentation.Close()
+
+# Quit PowerPoint
+powerpoint.Quit()
