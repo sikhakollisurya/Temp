@@ -1,0 +1,32 @@
+@echo off
+start "" "C:\Path\To\POWERPNT.EXE" "C:\Path\To\YourFile.pptm"
+
+
+import win32com.client
+import time
+
+# Path to your PowerPoint file
+pptm_path = r"C:\Path\To\YourFile.pptm"
+macro_name = "RunMacroAndSave"  # Name of the macro in the pptm file
+
+# Start PowerPoint application
+powerpoint = win32com.client.Dispatch("PowerPoint.Application")
+powerpoint.Visible = True  # Set to False if you don't want the PowerPoint window visible
+
+# Open the PowerPoint presentation
+presentation = powerpoint.Presentations.Open(pptm_path)
+
+# Run the macro defined in the PowerPoint file
+powerpoint.Run(macro_name)
+
+# Wait for a few seconds to allow the macro to execute
+time.sleep(5)  # You can adjust this based on how long the macro takes
+
+# Save and close the presentation
+presentation.Save()
+presentation.Close()
+
+# Quit PowerPoint
+powerpoint.Quit()
+
+print("PowerPoint macro executed and presentation saved.")
