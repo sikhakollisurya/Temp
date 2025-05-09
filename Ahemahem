@@ -1,0 +1,33 @@
+import win32com.client as win32
+import win32gui
+import win32con
+
+def bring_to_foreground(window_title):
+    # Find the window by its title
+    hwnd = win32gui.FindWindow(None, window_title)
+    if hwnd:
+        # Bring the window to the foreground
+        win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)  # Restore the window if minimized
+        win32gui.SetForegroundWindow(hwnd)  # Bring the window to the foreground
+
+def open_powerpoint_and_bring_to_foreground(ppt_file_path):
+    # Create an instance of PowerPoint
+    ppt = win32.Dispatch('PowerPoint.Application')
+
+    # Make PowerPoint visible (optional, set to False to run in the background)
+    ppt.Visible = True
+
+    # Open the PowerPoint presentation
+    presentation = ppt.Presentations.Open(ppt_file_path)
+
+    # Get the window title of the PowerPoint application
+    window_title = presentation.Windows(1).Caption
+
+    # Bring the PowerPoint window to the foreground
+    bring_to_foreground(window_title)
+
+    return ppt, presentation
+
+# Example usage
+ppt_file_path = r'C:\path\to\your\presentation.pptx'
+ppt, presentation = open_powerpoint_and_bring_to_foreground(ppt_file_path)
