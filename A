@@ -1,0 +1,42 @@
+import os
+import datetime
+
+def get_creation_date(path):
+    # For Windows, creation time is available
+    return datetime.datetime.fromtimestamp(os.path.getctime(path))
+
+def scan_directory(base_path):
+    all_items = []
+    old_items = []
+    now = datetime.datetime.now()
+    three_years_ago = now - datetime.timedelta(days=3*365)
+
+    for root, dirs, files in os.walk(base_path):
+        for name in dirs + files:
+            full_path = os.path.join(root, name)
+            try:
+                created_date = get_creation_date(full_path)
+                item = {
+                    'type': 'Folder' if os.path.isdir(full_path) else 'File',
+                    'path': full_path,
+                    'created': created_date.strftime('%Y-%m-%d %H:%M:%S')
+                }
+                all_items.append(item)
+                if created_date < three_years_ago:
+                    old_items.append(item)
+            except Exception as e:
+                print(f"Could not access: {full_path}. Reason: {e}")
+    return all_items, old_items
+
+# Replace this with your network folder path
+network_folder = r"\\network-drive\shared\folder"  # or r"Z:\folder"
+
+all_items, old_items = scan_directory(network_folder)
+
+print("\n=== All Items ===")
+for item in all_items:
+    print(f"{item['type']:6} | {item['created']} | {item['path']}")
+
+print("\n=== Old Items (>3 years) ===")
+for item in old_items:
+    print(f"{item['type']:6} | {item['created']} | {item['path']}")
