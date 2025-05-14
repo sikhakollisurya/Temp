@@ -1,0 +1,41 @@
+import ctypes
+from ctypes import wintypes
+
+def browse_folder(index):
+    BIF_RETURNONLYFSDIRS = 0x0001
+    BIF_NEWDIALOGSTYLE = 0x0040
+    CoTaskMemFree = ctypes.windll.ole32.CoTaskMemFree
+    SHGetMalloc = ctypes.windll.shell32.SHGetMalloc
+    SHBrowseForFolder = ctypes.windll.shell32.SHBrowseForFolderW
+    SHGetPathFromIDList = ctypes.windll.shell32.SHGetPathFromIDListW
+
+    class BROWSEINFO(ctypes.Structure):
+        _fields_ = [
+            ("hwndOwner", wintypes.HWND),
+            ("pidlRoot", wintypes.LPCVOID),
+            ("pszDisplayName", wintypes.LPWSTR),
+            ("lpszTitle", wintypes.LPCWSTR),
+            ("ulFlags", ctypes.c_uint),
+            ("lpfn", ctypes.c_void_p),
+            ("lParam", wintypes.LPARAM),
+            ("iImage", ctypes.c_int)
+        ]
+
+    def get_folder_path():
+        buffer = ctypes.create_unicode_buffer(wintypes.MAX_PATH)
+        bi = BROWSEINFO()
+        bi.pszDisplayName = buffer
+        bi.lpszTitle = "Select a folder"
+        bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE
+        pidl = SHBrowseForFolder(ctypes.byref(bi))
+        if pidl:
+            SHGetPathFromIDList(pidl, buffer)
+            CoTaskMemFree(pidl)
+            return buffer.value
+        return ""
+
+    folder = get_folder_path()
+    if folder and folder not in st.session_state.folders:
+        st.session_state.folders[index] = folder
+    elif folder in st.session_state.folders:
+        st.warning("Duplicate folder skipped.")
