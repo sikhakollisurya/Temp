@@ -1,0 +1,64 @@
+import streamlit as st
+import os
+import datetime
+import pandas as pd
+import shutil
+
+def get_creation_date(path):
+    try:
+        return datetime.datetime.fromtimestamp(os.path.getctime(path))
+    except:
+        return None
+
+def scan_directory(base_path):
+    all_items = []
+    now = datetime.datetime.now()
+    threshold_date = now - datetime.timedelta(days=3*365)
+
+    for root, dirs, files in os.walk(base_path):
+        for name in dirs + files:
+            full_path = os.path.join(root, name)
+            created = get_creation_date(full_path)
+            if created:
+                item = {
+                    'Type': 'Folder' if os.path.isdir(full_path) else 'File',
+                    'Created Date': created,
+                    'Path': full_path,
+                    'Is Old': created < threshold_date
+                }
+                all_items.append(item)
+    return pd.DataFrame(all_items)
+
+def delete_items(df):
+    for path in df[df['Is Old']]['Path']:
+        try:
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            else:
+                os.remove(path)
+        except Exception as e:
+            st.error(f"Error deleting {path}: {e}")
+
+# Streamlit UI
+st.title("Old File & Folder Cleaner")
+
+folder_path = st.text_input("Enter folder/network path:", r"\\network-drive\shared\folder")
+
+if st.button("Scan Folder"):
+    if os.path.exists(folder_path):
+        df = scan_directory(folder_path)
+        st.session_state['df'] = df
+        st.success("Scan complete.")
+        st.write(df)
+        st.download_button("Download Results as CSV", df.to_csv(index=False), file_name="scan_results.csv")
+
+        old_df = df[df['Is Old']]
+        st.write(f"**{len(old_df)}** items older than 3 years found.")
+
+        if not old_df.empty and st.button("Delete Old Items"):
+            confirm = st.checkbox("I confirm I want to delete these items.")
+            if confirm:
+                delete_items(old_df)
+                st.success("Old items deleted.")
+    else:
+        st.error("Invalid path. Make sure it exists and is accessible.")
