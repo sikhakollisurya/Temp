@@ -1,0 +1,116 @@
+import streamlit as st
+import os
+import datetime
+import pandas as pd
+import shutil
+
+# Set wide layout
+st.set_page_config(layout="wide")
+st.title("Multi-Folder Old File & Folder Cleaner")
+
+# State setup
+if "folders" not in st.session_state:
+    st.session_state.folders = [""]
+if "scan_result" not in st.session_state:
+    st.session_state.scan_result = pd.DataFrame()
+
+# Input folders dynamically
+st.subheader("Enter Folder Paths")
+
+for i in range(len(st.session_state.folders)):
+    st.session_state.folders[i] = st.text_input(
+        f"Folder {i+1}", value=st.session_state.folders[i], key=f"folder_input_{i}")
+
+if st.button("Add Another Folder"):
+    st.session_state.folders.append("")
+
+# Age threshold selector
+st.subheader("Age Threshold")
+age_years = st.slider("Show files/folders older than:", min_value=1, max_value=10, value=3)
+threshold_date = datetime.datetime.now() - datetime.timedelta(days=age_years * 365)
+
+# Helpers
+def get_creation_date(path):
+    return datetime.datetime.fromtimestamp(os.path.getctime(path))
+
+def scan_directory(base_path, threshold_date):
+    items = []
+    for root, dirs, files in os.walk(base_path):
+        for name in dirs + files:
+            full_path = os.path.join(root, name)
+            try:
+                created = get_creation_date(full_path)
+                items.append({
+                    'Root Folder': base_path,
+                    'Type': 'Folder' if os.path.isdir(full_path) else 'File',
+                    'Created Date': created,
+                    'Path': full_path,
+                    'Is Old': created < threshold_date,
+                    'Delete': False
+                })
+            except:
+                continue
+    return items
+
+# Scan
+if st.button("Scan Folders"):
+    all_data = []
+    for folder in st.session_state.folders:
+        folder = folder.strip()
+        if os.path.exists(folder):
+            all_data.extend(scan_directory(folder, threshold_date))
+        else:
+            st.warning(f"Path not found: {folder}")
+
+    if all_data:
+        df = pd.DataFrame(all_data)
+        st.session_state.scan_result = df
+        st.success("Scan complete.")
+    else:
+        st.warning("No valid folders or items found.")
+
+# Display scanned data with checkboxes
+if not st.session_state.scan_result.empty:
+    df = st.session_state.scan_result.copy()
+    df_old = df[df["Is Old"]]
+
+    st.subheader("Old Files & Folders")
+    if df_old.empty:
+        st.info("No items older than the selected age.")
+    else:
+        with st.form("delete_selection_form"):
+            st.write(f"Found **{len(df_old)}** old items.")
+            selected_to_delete = st.multiselect(
+                "Select items to delete:",
+                df_old["Path"].tolist(),
+                default=[]
+            )
+            submit = st.form_submit_button("Delete Selected Items")
+
+        # Perform deletion
+        if submit and selected_to_delete:
+            deleted_log = []
+            for path in selected_to_delete:
+                try:
+                    if os.path.isdir(path):
+                        shutil.rmtree(path)
+                    else:
+                        os.remove(path)
+                    deleted_log.append(path)
+                except Exception as e:
+                    st.error(f"Failed to delete {path}: {e}")
+
+            # Update result dataframe
+            st.session_state.scan_result = st.session_state.scan_result[~st.session_state.scan_result["Path"].isin(deleted_log)]
+            st.success(f"Deleted {len(deleted_log)} items.")
+            with st.expander("Show Deletion Log"):
+                for p in deleted_log:
+                    st.write(p)
+
+# Download scanned results
+if not st.session_state.scan_result.empty:
+    st.download_button(
+        "Download Scan Results (CSV)",
+        st.session_state.scan_result.to_csv(index=False),
+        file_name="scan_results.csv"
+    )
