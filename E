@@ -1,0 +1,93 @@
+import streamlit as st import os import datetime import pandas as pd import shutil import tkinter as tk from tkinter import filedialog
+
+Use Tkinter for native folder dialog
+
+root = tk.Tk() root.withdraw()
+
+Set wide layout and default to light theme
+
+st.set_page_config(layout="wide")
+
+st.title("Multi-Folder Old File & Folder Cleaner")
+
+Session states
+
+if "folders" not in st.session_state: st.session_state.folders = [""] if "scan_result" not in st.session_state: st.session_state.scan_result = pd.DataFrame()
+
+def browse_folder(index): folder_selected = filedialog.askdirectory() if folder_selected and folder_selected not in st.session_state.folders: st.session_state.folders[index] = folder_selected elif folder_selected in st.session_state.folders: st.warning("Duplicate folder skipped.")
+
+Folder input section
+
+st.subheader("Select Folders to Scan") indexes_to_remove = []
+
+for i in range(len(st.session_state.folders)): cols = st.columns([5, 1, 1]) with cols[0]: st.session_state.folders[i] = st.text_input( f"Folder {i+1}", value=st.session_state.folders[i], key=f"folder_input_{i}") with cols[1]: if st.button("Browse", key=f"browse_{i}"): browse_folder(i) with cols[2]: if len(st.session_state.folders) > 1: if st.button("Remove", key=f"remove_{i}"): indexes_to_remove.append(i)
+
+Remove marked folders
+
+for i in sorted(indexes_to_remove, reverse=True): st.session_state.folders.pop(i)
+
+if st.button("Add Another Folder"): st.session_state.folders.append("")
+
+Age threshold selector
+
+st.subheader("Age Filter") age_years = st.slider("Select age threshold (in years):", 1, 10, 3) threshold_date = datetime.datetime.now() - datetime.timedelta(days=age_years * 365)
+
+def get_creation_date(path): return datetime.datetime.fromtimestamp(os.path.getctime(path))
+
+def scan_directory(base_path, threshold_date): items = [] for root, dirs, files in os.walk(base_path): for name in dirs + files: full_path = os.path.join(root, name) try: created = get_creation_date(full_path) items.append({ 'Name': name, 'Type': 'Folder' if os.path.isdir(full_path) else 'File', 'Created Date': created, 'Path': full_path, 'Is Old': created < threshold_date, 'Delete': False }) except: continue return items
+
+Scan logic
+
+if st.button("Scan Folders"): all_data = [] for folder in st.session_state.folders: folder = folder.strip() if os.path.exists(folder): all_data.extend(scan_directory(folder, threshold_date)) else: st.warning(f"Invalid path: {folder}")
+
+if all_data:
+    df = pd.DataFrame(all_data)
+    st.session_state.scan_result = df
+    st.success("Scan complete.")
+else:
+    st.warning("No valid folders or items found.")
+
+Show results with compact vertical table
+
+if not st.session_state.scan_result.empty: df_old = st.session_state.scan_result[st.session_state.scan_result['Is Old']]
+
+if df_old.empty:
+    st.info("No items older than selected threshold.")
+else:
+    st.subheader("Old Items Found")
+    selected = []
+    for i, row in df_old.iterrows():
+        cols = st.columns([0.05, 0.95])
+        with cols[0]:
+            if st.checkbox("", key=f"select_{i}"):
+                selected.append(row['Path'])
+        with cols[1]:
+            st.markdown(f"**{row['Name']}** ({row['Type']})")
+            st.caption(f"Created: {row['Created Date'].strftime('%Y-%m-%d')}")
+            with st.expander("Show Full Path"):
+                st.code(row['Path'], language="text")
+
+    if selected:
+        if st.button("Delete Selected"):
+            deleted_log = []
+            for path in selected:
+                try:
+                    if os.path.isdir(path):
+                        shutil.rmtree(path)
+                    else:
+                        os.remove(path)
+                    deleted_log.append(path)
+                except Exception as e:
+                    st.error(f"Failed to delete {path}: {e}")
+
+            # Filter out deleted items
+            st.session_state.scan_result = st.session_state.scan_result[~st.session_state.scan_result['Path'].isin(deleted_log)]
+            st.success(f"Deleted {len(deleted_log)} items.")
+            with st.expander("View Deleted Items"):
+                for item in deleted_log:
+                    st.write(item)
+
+CSV download option
+
+if not st.session_state.scan_result.empty: st.download_button( "Download Scan Results (CSV)", st.session_state.scan_result.to_csv(index=False), file_name="scan_results.csv" )
+
