@@ -1,0 +1,156 @@
+import streamlit as st
+import os
+import datetime
+import pandas as pd
+import shutil
+import ctypes
+from ctypes import wintypes
+
+# Configure wide layout and light theme
+st.set_page_config(layout="wide")
+
+st.title("Old File & Folder Cleaner")
+
+# Session state defaults
+if "folder" not in st.session_state:
+    st.session_state.folder = ""
+if "scan_result" not in st.session_state:
+    st.session_state.scan_result = pd.DataFrame()
+
+# Folder browse button (Windows only)
+def browse_folder():
+    BIF_RETURNONLYFSDIRS = 0x0001
+    BIF_NEWDIALOGSTYLE = 0x0040
+    CoTaskMemFree = ctypes.windll.ole32.CoTaskMemFree
+    SHBrowseForFolder = ctypes.windll.shell32.SHBrowseForFolderW
+    SHGetPathFromIDList = ctypes.windll.shell32.SHGetPathFromIDListW
+
+    class BROWSEINFO(ctypes.Structure):
+        _fields_ = [
+            ("hwndOwner", wintypes.HWND),
+            ("pidlRoot", wintypes.LPCVOID),
+            ("pszDisplayName", wintypes.LPWSTR),
+            ("lpszTitle", wintypes.LPCWSTR),
+            ("ulFlags", ctypes.c_uint),
+            ("lpfn", ctypes.c_void_p),
+            ("lParam", wintypes.LPARAM),
+            ("iImage", ctypes.c_int),
+        ]
+
+    def get_folder_path():
+        buffer = ctypes.create_unicode_buffer(wintypes.MAX_PATH)
+        bi = BROWSEINFO()
+        bi.pszDisplayName = buffer
+        bi.lpszTitle = "Select a folder"
+        bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE
+        pidl = SHBrowseForFolder(ctypes.byref(bi))
+        if pidl:
+            SHGetPathFromIDList(pidl, buffer)
+            CoTaskMemFree(pidl)
+            return buffer.value
+        return ""
+
+    folder = get_folder_path()
+    if folder:
+        st.session_state.folder = folder
+
+# Folder input
+st.subheader("Select Folder")
+cols = st.columns([5, 1])
+with cols[0]:
+    st.session_state.folder = st.text_input("Folder Path", value=st.session_state.folder, key="folder_input")
+with cols[1]:
+    if st.button("Browse"):
+        browse_folder()
+
+# Age threshold
+st.subheader("Age Filter")
+age_years = st.slider("Delete items older than (years):", 1, 10, 3)
+threshold_date = datetime.datetime.now() - datetime.timedelta(days=age_years * 365)
+
+# Helper: Get creation date
+def get_creation_date(path):
+    return datetime.datetime.fromtimestamp(os.path.getctime(path))
+
+# Helper: Scan folder
+def scan_directory(base_path, threshold_date):
+    items = []
+    for root, dirs, files in os.walk(base_path):
+        for name in dirs + files:
+            full_path = os.path.join(root, name)
+            try:
+                created = get_creation_date(full_path)
+                items.append({
+                    'Name': name,
+                    'Type': 'Folder' if os.path.isdir(full_path) else 'File',
+                    'Created Date': created,
+                    'Path': full_path,
+                    'Is Old': created < threshold_date
+                })
+            except:
+                continue
+    return items
+
+# Scan trigger
+if st.button("Scan Folder"):
+    folder = st.session_state.folder.strip()
+    if os.path.exists(folder):
+        data = scan_directory(folder, threshold_date)
+        if data:
+            st.session_state.scan_result = pd.DataFrame(data)
+            st.success("Scan complete.")
+        else:
+            st.warning("No items found.")
+    else:
+        st.warning("Invalid folder path.")
+
+# Results
+if not st.session_state.scan_result.empty:
+    df_old = st.session_state.scan_result[st.session_state.scan_result['Is Old']]
+
+    if df_old.empty:
+        st.info("No old items found.")
+    else:
+        st.subheader("Old Items")
+        selected_paths = []
+
+        for i, row in df_old.iterrows():
+            cols = st.columns([0.05, 0.95])
+            with cols[0]:
+                if st.checkbox("", key=f"chk_{i}"):
+                    selected_paths.append(row['Path'])
+            with cols[1]:
+                st.markdown(f"**{row['Name']}** ({row['Type']})")
+                st.caption(f"Created on {row['Created Date'].strftime('%Y-%m-%d')}")
+                with st.expander("Show Full Path"):
+                    st.code(row['Path'], language="text")
+
+        if selected_paths:
+            if st.button("Delete Selected"):
+                deleted = []
+                for path in selected_paths:
+                    try:
+                        if os.path.isdir(path):
+                            shutil.rmtree(path)
+                        else:
+                            os.remove(path)
+                        deleted.append(path)
+                    except Exception as e:
+                        st.error(f"Could not delete {path}: {e}")
+
+                # Update scan results
+                st.session_state.scan_result = st.session_state.scan_result[
+                    ~st.session_state.scan_result['Path'].isin(deleted)
+                ]
+                st.success(f"Deleted {len(deleted)} items.")
+                with st.expander("Deleted Paths"):
+                    for p in deleted:
+                        st.write(p)
+
+# CSV Export
+if not st.session_state.scan_result.empty:
+    st.download_button(
+        "Download Full Scan Results (CSV)",
+        st.session_state.scan_result.to_csv(index=False),
+        file_name="scan_results.csv"
+    )
