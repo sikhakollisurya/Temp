@@ -1,0 +1,79 @@
+import streamlit as st
+import os
+import datetime
+import pandas as pd
+import shutil
+
+# Trick to allow folder selection dialog
+from tkinter import Tk, filedialog
+
+def browse_folder():
+    root = Tk()
+    root.withdraw()  # Hide the root window
+    folder_selected = filedialog.askdirectory()
+    root.destroy()
+    return folder_selected
+
+def get_creation_date(path):
+    return datetime.datetime.fromtimestamp(os.path.getctime(path))
+
+def scan_directory(base_path):
+    all_items = []
+    now = datetime.datetime.now()
+    threshold_date = now - datetime.timedelta(days=3*365)
+
+    for root, dirs, files in os.walk(base_path):
+        for name in dirs + files:
+            full_path = os.path.join(root, name)
+            created = get_creation_date(full_path)
+            if created:
+                item = {
+                    'Type': 'Folder' if os.path.isdir(full_path) else 'File',
+                    'Created Date': created,
+                    'Path': full_path,
+                    'Is Old': created < threshold_date
+                }
+                all_items.append(item)
+    return pd.DataFrame(all_items)
+
+def delete_items(df):
+    for path in df[df['Is Old']]['Path']:
+        try:
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            else:
+                os.remove(path)
+        except Exception as e:
+            st.error(f"Error deleting {path}: {e}")
+
+# Streamlit App
+st.title("Old File & Folder Cleaner")
+
+if "folder_path" not in st.session_state:
+    st.session_state.folder_path = ""
+
+col1, col2 = st.columns([4, 1])
+with col1:
+    folder_path = st.text_input("Selected Folder:", st.session_state.folder_path)
+with col2:
+    if st.button("Browse"):
+        selected = browse_folder()
+        st.session_state.folder_path = selected
+
+if st.button("Scan Folder"):
+    if os.path.exists(st.session_state.folder_path):
+        df = scan_directory(st.session_state.folder_path)
+        st.session_state['df'] = df
+        st.success("Scan complete.")
+        st.dataframe(df)
+        st.download_button("Download Results as CSV", df.to_csv(index=False), file_name="scan_results.csv")
+
+        old_df = df[df['Is Old']]
+        st.write(f"**{len(old_df)}** items older than 3 years found.")
+
+        if not old_df.empty and st.button("Delete Old Items"):
+            if st.checkbox("I confirm I want to delete these items."):
+                delete_items(old_df)
+                st.success("Old items deleted.")
+    else:
+        st.error("Invalid path. Make sure it exists.")
