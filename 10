@@ -1,0 +1,166 @@
+import os
+import streamlit as st
+import pandas as pd
+import datetime
+from pathlib import Path
+
+st.set_page_config(layout="wide", page_title="Old File Cleaner", initial_sidebar_state="expanded")
+st.title("Old File Cleaner")
+
+# --- Functions ---
+def get_creation_date(path):
+    try:
+        return datetime.datetime.fromtimestamp(os.path.getctime(path))
+    except Exception:
+        return None
+
+def get_size(path):
+    try:
+        if os.path.isfile(path):
+            return os.path.getsize(path)
+        return None
+    except Exception:
+        return None
+
+def scan_directory(base_path, threshold_date):
+    entries = []
+    base_path = os.path.abspath(base_path)
+    for root, dirs, files in os.walk(base_path):
+        rel_root = os.path.relpath(root, base_path)
+
+        depth = rel_root.count(os.sep)
+        indent = "    " * depth
+        folder_name = os.path.basename(root) if rel_root != '.' else os.path.basename(base_path)
+        full_path = os.path.abspath(root)
+        folder_created = get_creation_date(full_path)
+
+        entries.append({
+            "Name": folder_name + "/",
+            "RelativePath": rel_root if rel_root != '.' else '.',
+            "FullPath": full_path,
+            "IsDir": True,
+            "Is_Old": folder_created < threshold_date if folder_created else False,
+            "Size": 0,
+            "Created": folder_created,
+            "Depth": depth,
+            "Indent": indent
+        })
+
+        for f in files:
+            file_path = os.path.join(root, f)
+            rel_path = os.path.relpath(file_path, base_path)
+            created = get_creation_date(file_path)
+            size = get_size(file_path)
+            depth = rel_path.count(os.sep)
+            indent = "    " * depth
+
+            entries.append({
+                "Name": f,
+                "RelativePath": rel_path,
+                "FullPath": os.path.abspath(file_path),
+                "IsDir": False,
+                "Is_Old": created < threshold_date,
+                "Size": size,
+                "Created": created,
+                "Depth": depth,
+                "Indent": indent
+            })
+
+    return pd.DataFrame(entries)
+
+# --- Sidebar Threshold Input ---
+thresh_type = st.sidebar.radio("Select threshold input method:", ["Days ago", "Specific date"])
+
+if thresh_type == "Days ago":
+    days = st.sidebar.slider("Files older than (days):", 1, 365, 30)
+    threshold_date = datetime.datetime.now() - datetime.timedelta(days=days)
+else:
+    threshold_date = st.sidebar.date_input("Select cutoff date:", datetime.date.today() - datetime.timedelta(days=30))
+    threshold_date = datetime.datetime.combine(threshold_date, datetime.time())
+
+# --- Folder Input ---
+folders = st.sidebar.text_area("Enter folder paths (one per line):").splitlines()
+folders = [f.strip() for f in folders if f.strip()]
+
+if 'scan' not in st.session_state:
+    st.session_state.scan = False
+
+if st.sidebar.button("Scan Now"):
+    st.session_state.scan = True
+
+# --- Main View ---
+if st.session_state.scan:
+    full_df = pd.DataFrame()
+    st.subheader("Scanned Results")
+
+    for i, folder in enumerate(folders):
+        if not os.path.isdir(folder):
+            st.error(f"Invalid folder: {folder}")
+            continue
+
+        with st.expander(f"Contents of: {folder}", expanded=True):
+            df = scan_directory(folder, threshold_date)
+
+            if df.empty:
+                st.write("No files found.")
+                continue
+
+            selected_files = []
+            folder_map = {}
+
+            # --- Folder-wise grouping ---
+            for idx, row in df.iterrows():
+                if row['IsDir']:
+                    folder_key = row['FullPath']
+                    with st.container():
+                        col1, col2 = st.columns([0.05, 0.95])
+                        with col1:
+                            select_all = st.checkbox("", key=f"folder_cb_{i}_{idx}")
+                        with col2:
+                            st.markdown(f"**{row['Indent'] + row['Name']}**")
+
+                    folder_map[folder_key] = []
+
+                    # gather contents recursively
+                    current_level = row['Depth']
+                    for sub_idx in range(idx + 1, len(df)):
+                        sub_row = df.iloc[sub_idx]
+                        if sub_row['Depth'] <= current_level:
+                            break
+                        if not sub_row['IsDir']:
+                            checked = st.checkbox(
+                                f"{sub_row['Indent'] + sub_row['Name']} (Created: {sub_row['Created']:%Y-%m-%d}, Size: {sub_row['Size'] / 1024:.1f} KB)",
+                                key=f"chk_{i}_{idx}_{sub_idx}", value=select_all)
+                            if checked:
+                                selected_files.append(sub_row)
+
+            if selected_files:
+                selected_df = pd.DataFrame(selected_files)
+                full_df = pd.concat([full_df, selected_df], ignore_index=True)
+
+    if not full_df.empty:
+        st.markdown("### Selected Files")
+        display_df = full_df[['Name', 'RelativePath', 'Created', 'Size']].copy()
+        display_df['Size'] = display_df['Size'].apply(lambda x: f"{x / 1024:.2f} KB")
+        st.dataframe(display_df, use_container_width=True)
+
+        export = st.download_button("Export as Excel", data=full_df.to_csv(index=False), file_name="old_files.csv")
+
+        action = st.radio("Choose Action", ["Delete Selected", "Move Selected"])
+        if action == "Move Selected":
+            dest = st.text_input("Enter destination folder:")
+
+        if st.button("Perform Action"):
+            for _, row in full_df.iterrows():
+                try:
+                    if action == "Delete Selected":
+                        os.remove(row['FullPath'])
+                    elif action == "Move Selected" and dest:
+                        os.makedirs(dest, exist_ok=True)
+                        fname = os.path.basename(row['FullPath'])
+                        new_path = os.path.join(dest, fname)
+                        os.rename(row['FullPath'], new_path)
+                except Exception as e:
+                    st.warning(f"Failed for {row['FullPath']}: {e}")
+
+            st.success("Action completed.")
