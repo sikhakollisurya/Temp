@@ -1,0 +1,149 @@
+import os
+import streamlit as st
+import pandas as pd
+import shutil
+from datetime import datetime, timedelta
+
+st.set_page_config(layout="wide", page_title="Old File Cleaner")
+
+st.title("Old File Cleaner")
+
+# Sidebar for inputs
+st.sidebar.header("Configuration")
+folders_input = st.sidebar.text_area("Enter folder paths (one per line):")
+days_threshold = st.sidebar.number_input("Delete/Move files older than (days):", min_value=1, value=30)
+
+# Threshold date
+threshold_date = datetime.now() - timedelta(days=days_threshold)
+
+folders = [f.strip() for f in folders_input.splitlines() if f.strip() and os.path.exists(f.strip())]
+
+# Function to recursively collect file/folder info
+def collect_files(folder, root_path, level=0):
+    entries = []
+    try:
+        with os.scandir(folder) as it:
+            for entry in it:
+                full_path = entry.path
+                relative_path = os.path.relpath(full_path, root_path)
+                try:
+                    stat = entry.stat()
+                    creation_time = datetime.fromtimestamp(stat.st_ctime)
+                    size_kb = stat.st_size // 1024
+                except:
+                    continue
+
+                if entry.is_dir(follow_symlinks=False):
+                    sub_entries = collect_files(full_path, root_path, level + 1)
+                    if sub_entries:
+                        entries.append({
+                            "name": entry.name,
+                            "path": full_path,
+                            "relative_path": relative_path,
+                            "type": "folder",
+                            "level": level,
+                            "size_kb": 0,
+                            "creation_time": creation_time,
+                            "children": sub_entries
+                        })
+                elif creation_time < threshold_date:
+                    entries.append({
+                        "name": entry.name,
+                        "path": full_path,
+                        "relative_path": relative_path,
+                        "type": "file",
+                        "level": level,
+                        "size_kb": size_kb,
+                        "creation_time": creation_time
+                    })
+    except:
+        pass
+    return entries
+
+# Recursive checkbox builder
+def display_entries(entries, selected_paths, preview_rows, parent_checked=False):
+    for item in entries:
+        indent = "\u2003" * item['level'] * 4
+        label = f"{indent}{item['name']}"
+
+        checked = st.checkbox(label, key=item['path'], value=False)
+
+        if checked:
+            selected_paths.append(item['path'])
+            if item['type'] == 'file':
+                preview_rows.append({
+                    "Name": item['name'],
+                    "Size (KB)": item['size_kb'],
+                    "Created": item['creation_time'],
+                    "Relative Path": item['relative_path']
+                })
+            if item['type'] == 'folder' and 'children' in item:
+                for sub in item['children']:
+                    selected_paths.append(sub['path'])
+
+        if item['type'] == 'folder' and 'children' in item:
+            display_entries(item['children'], selected_paths, preview_rows, parent_checked=checked)
+
+# Scan Now
+if st.button("Scan Now") and folders:
+    all_entries = []
+    for folder in folders:
+        entries = collect_files(folder, folder)
+        if entries:
+            with st.expander(f"{folder}", expanded=True):
+                selected_paths = []
+                preview_rows = []
+                display_entries(entries, selected_paths, preview_rows)
+                st.session_state[f"selected_{folder}"] = selected_paths
+                st.session_state[f"preview_{folder}"] = preview_rows
+
+    # Merge selections and previews from all folders
+    final_selection = []
+    preview_data = []
+    for folder in folders:
+        final_selection.extend(st.session_state.get(f"selected_{folder}", []))
+        preview_data.extend(st.session_state.get(f"preview_{folder}", []))
+
+    final_selection = list(set(final_selection))
+
+    if preview_data:
+        df_preview = pd.DataFrame(preview_data)
+        st.subheader("Preview of Selected Files")
+        st.dataframe(df_preview, use_container_width=True)
+
+        # Export to Excel
+        export_btn = st.download_button(
+            label="Download Selection as Excel",
+            data=df_preview.to_excel(index=False, engine='openpyxl'),
+            file_name="selected_files.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    if final_selection:
+        st.success(f"{len(final_selection)} items selected.")
+        action = st.radio("Choose Action", ["Move", "Delete"])
+
+        if action == "Move":
+            dest = st.text_input("Enter destination folder:")
+            if st.button("Move Selected Files"):
+                os.makedirs(dest, exist_ok=True)
+                for file_path in final_selection:
+                    try:
+                        shutil.move(file_path, os.path.join(dest, os.path.basename(file_path)))
+                    except Exception as e:
+                        st.warning(f"Failed to move {file_path}: {e}")
+                st.success("Move completed.")
+
+        elif action == "Delete":
+            if st.button("Delete Selected Files"):
+                for file_path in final_selection:
+                    try:
+                        if os.path.isfile(file_path):
+                            os.remove(file_path)
+                        elif os.path.isdir(file_path):
+                            shutil.rmtree(file_path)
+                    except Exception as e:
+                        st.warning(f"Failed to delete {file_path}: {e}")
+                st.success("Deletion completed.")
+else:
+    st.info("Enter folders and click 'Scan Now' to begin.")
