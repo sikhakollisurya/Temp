@@ -1,0 +1,156 @@
+import os
+import shutil
+import time
+from datetime import datetime, timedelta
+from io import BytesIO
+from collections import defaultdict
+
+import pandas as pd
+import streamlit as st
+
+# === Streamlit Config ===
+st.set_page_config(layout="wide", page_title="Old File Cleaner")
+st.title("Old File Cleaner")
+
+# === State Init ===
+if "scan_results" not in st.session_state:
+    st.session_state.scan_results = pd.DataFrame()
+if "selected_paths" not in st.session_state:
+    st.session_state.selected_paths = set()
+
+# === Folder Input ===
+st.sidebar.header("1. Folder Selection")
+folders = st.sidebar.text_area("Enter folder paths (one per line):", height=150)
+folder_list = [f.strip() for f in folders.split("\n") if f.strip()]
+
+# === Threshold Input ===
+st.sidebar.header("2. Threshold Configuration")
+input_mode = st.sidebar.radio("Choose threshold mode:", ["Days Ago", "Specific Date"])
+
+if input_mode == "Days Ago":
+    days_threshold = st.sidebar.number_input("Files created more than N days ago:", min_value=1, max_value=10000, value=30)
+    cutoff_time = time.time() - days_threshold * 86400
+else:
+    selected_date = st.sidebar.date_input("Files created before:", datetime.today() - timedelta(days=30))
+    cutoff_time = time.mktime(selected_date.timetuple())
+
+# === Scan Button ===
+if st.sidebar.button("Scan Now"):
+    scanned_data = []
+    for folder in folder_list:
+        if not os.path.exists(folder):
+            continue
+        for root, dirs, files in os.walk(folder):
+            for name in files + dirs:
+                path = os.path.join(root, name)
+                try:
+                    stat = os.stat(path)
+                    if stat.st_ctime < cutoff_time:
+                        scanned_data.append({
+                            "Relative Path": os.path.relpath(path, folder),
+                            "Full Path": path,
+                            "Type": "Folder" if os.path.isdir(path) else "File",
+                            "Size (KB)": stat.st_size // 1024,
+                            "Last Modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
+                            "Created": datetime.fromtimestamp(stat.st_ctime).strftime("%Y-%m-%d %H:%M"),
+                            "Folder": folder
+                        })
+                except Exception:
+                    continue
+
+    st.session_state.scan_results = pd.DataFrame(scanned_data)
+
+# === Recursive Folder Display ===
+def build_tree(data):
+    tree = {}
+    for _, row in data.iterrows():
+        parts = row['Relative Path'].split(os.sep)
+        current = tree
+        for part in parts[:-1]:
+            current = current.setdefault(part, {})
+        current[parts[-1]] = row
+    return tree
+
+def render_tree(node, path_prefix=""):
+    for name, content in node.items():
+        if isinstance(content, dict) and not isinstance(content.get("Type"), str):
+            with st.expander(f"📁 {name}"):
+                full_paths = get_all_file_paths(content)
+                select_all_key = f"selectall_{path_prefix + name}"
+                select_all = st.checkbox("Select All Inside", key=select_all_key)
+                render_tree(content, path_prefix + name + os.sep)
+                if select_all:
+                    for fp in full_paths:
+                        st.session_state.selected_paths.add(fp)
+        else:
+            display = f"📄 {name} | Created: {content['Created']} | Modified: {content['Last Modified']} | Size: {content['Size (KB)']} KB"
+            key = f"check_{content['Full Path']}"
+            checked = st.checkbox(display, key=key)
+            if checked:
+                st.session_state.selected_paths.add(content['Full Path'])
+
+def get_all_file_paths(tree):
+    paths = []
+    for key, value in tree.items():
+        if isinstance(value, dict) and not isinstance(value.get("Type"), str):
+            paths.extend(get_all_file_paths(value))
+        else:
+            paths.append(value['Full Path'])
+    return paths
+
+# === Show Tree View ===
+if not st.session_state.scan_results.empty:
+    st.subheader("Scan Results")
+    df = st.session_state.scan_results.copy()
+    grouped_by_folder = df.groupby("Folder")
+
+    for folder, group in grouped_by_folder:
+        st.markdown(f"### Root: {folder}")
+        tree = build_tree(group)
+        render_tree(tree)
+
+    # === Export ===
+    buffer = BytesIO()
+    df.to_excel(buffer, index=False)
+    st.download_button("Download as Excel", buffer.getvalue(), file_name="scan_results.xlsx")
+
+# === Deletion Page ===
+st.sidebar.header("3. Deletion Tool")
+st.sidebar.markdown("Upload a CSV from the previous scan OR delete selected items above.")
+delete_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
+
+if delete_file:
+    delete_df = pd.read_csv(delete_file)
+    st.subheader("Files to be deleted (from CSV)")
+    st.dataframe(delete_df.drop(columns=["Full Path"]))
+
+    if st.checkbox("I confirm I want to delete the files/folders from the CSV"):
+        if st.button("Delete Now (from CSV)"):
+            deleted, failed = 0, 0
+            for path in delete_df["Full Path"]:
+                try:
+                    if os.path.isfile(path):
+                        os.remove(path)
+                    elif os.path.isdir(path):
+                        shutil.rmtree(path)
+                    deleted += 1
+                except:
+                    failed += 1
+            st.success(f"Deleted: {deleted} | Failed: {failed}")
+
+# === Delete selected paths from session ===
+if st.session_state.selected_paths:
+    if st.checkbox("I confirm I want to delete the files/folders selected above"):
+        if st.button("Delete Now (selected)"):
+            deleted, failed = 0, 0
+            for path in st.session_state.selected_paths:
+                try:
+                    if os.path.isfile(path):
+                        os.remove(path)
+                    elif os.path.isdir(path):
+                        shutil.rmtree(path)
+                    deleted += 1
+                except:
+                    failed += 1
+            st.success(f"Deleted: {deleted} | Failed: {failed}")
+            st.session_state.selected_paths = set()
