@@ -1,0 +1,150 @@
+import streamlit as st
+import os
+import pandas as pd
+from datetime import datetime, timedelta
+import shutil
+
+st.set_page_config(layout="wide", page_title="Old File Cleaner", initial_sidebar_state="expanded")
+st.title("Old File Cleaner")
+
+# Utility Functions
+
+def get_file_info(path, threshold_date):
+    stat = os.stat(path)
+    created = datetime.fromtimestamp(stat.st_ctime)
+    return {
+        "Name": os.path.basename(path),
+        "Size (KB)": round(stat.st_size / 1024, 2) if os.path.isfile(path) else 0,
+        "Created": created.strftime("%Y-%m-%d %H:%M:%S"),
+        "Type": "Folder" if os.path.isdir(path) else "File",
+        "Full Path": path,
+        "Is_Old": created < threshold_date
+    }
+
+def scan_directory(folder_path, threshold_date):
+    data = []
+    for root, dirs, files in os.walk(folder_path):
+        for name in dirs + files:
+            full_path = os.path.join(root, name)
+            try:
+                info = get_file_info(full_path, threshold_date)
+                data.append(info)
+            except Exception:
+                continue
+    return data
+
+def nest_file_tree(data, root_folder):
+    tree = {}
+    for row in data:
+        rel_path = os.path.relpath(row["Full Path"], root_folder)
+        parts = rel_path.split(os.sep)
+        current = tree
+        for part in parts[:-1]:
+            current = current.setdefault(part, {})
+        current[parts[-1]] = row
+    return tree
+
+def get_all_file_paths(tree):
+    paths = set()
+    for key, content in tree.items():
+        if isinstance(content, dict) and "Type" not in content:
+            paths.update(get_all_file_paths(content))
+        elif content.get("Is_Old", False):
+            paths.add(content["Full Path"])
+    return paths
+
+def render_tree(tree, level=0, parent_key=""):
+    for key, content in tree.items():
+        indent = "\u00A0" * 4 * level
+        unique_key = parent_key + "_" + key
+
+        if isinstance(content, dict) and "Type" not in content:
+            folder_label = f"{indent}📁 {key}"
+            folder_selected = st.checkbox(label=folder_label, key=unique_key)
+            child_paths = get_all_file_paths(content)
+            if folder_selected:
+                for child_path in child_paths:
+                    st.session_state.selected_files.add(child_path)
+            else:
+                for child_path in child_paths:
+                    st.session_state.selected_files.discard(child_path)
+            render_tree(content, level + 1, unique_key)
+        else:
+            if not content.get("Is_Old"):
+                continue
+            file_label = f"{indent}{key} ({content['Size (KB)']} KB)"
+            file_selected = st.checkbox(label=file_label, key=unique_key)
+            if file_selected:
+                st.session_state.selected_files.add(content["Full Path"])
+            else:
+                st.session_state.selected_files.discard(content["Full Path"])
+
+# App State
+if "selected_files" not in st.session_state:
+    st.session_state.selected_files = set()
+
+# Sidebar Inputs
+st.sidebar.header("Scan Settings")
+folder_inputs = st.sidebar.text_area("Enter folder paths (one per line)", height=150)
+thresh_mode = st.sidebar.radio("Select Threshold Mode", ["Days", "Specific Date"])
+
+if thresh_mode == "Days":
+    days = st.sidebar.number_input("Files older than (days):", min_value=0, value=30)
+    threshold_date = datetime.now() - timedelta(days=days)
+else:
+    threshold_date = st.sidebar.date_input("Files created before:")
+    threshold_date = datetime.combine(threshold_date, datetime.min.time())
+
+if st.sidebar.button("Scan Now"):
+    all_data = []
+    folders = [f.strip() for f in folder_inputs.strip().splitlines() if f.strip()]
+    for folder in folders:
+        if os.path.isdir(folder):
+            all_data += scan_directory(folder, threshold_date)
+
+    if all_data:
+        df = pd.DataFrame(all_data)
+        st.session_state.df = df
+        st.session_state.folders = folders
+        st.success(f"Scan complete. {len(df[df['Is_Old']])} old items found.")
+    else:
+        st.warning("No files found matching the threshold.")
+
+# Display scanned results
+if "df" in st.session_state:
+    st.subheader("Scanned Results")
+    if st.button("Export to Excel"):
+        df_to_export = st.session_state.df.copy()
+        df_to_export.to_excel("old_files.xlsx", index=False)
+        with open("old_files.xlsx", "rb") as f:
+            st.download_button("Download Excel", f, file_name="old_files.xlsx")
+
+    # Render indented tree view per folder inside expandable boxes
+    for folder in st.session_state.folders:
+        with st.expander(f"Folder: {folder}"):
+            folder_data = st.session_state.df[st.session_state.df["Full Path"].str.startswith(folder)]
+            tree = nest_file_tree(folder_data.to_dict("records"), folder)
+            render_tree(tree, 0, folder)
+
+    # Action buttons
+    st.subheader("Actions")
+    action = st.radio("Choose action for selected items:", ["Delete", "Move"])
+
+    if action == "Move":
+        dest_folder = st.text_input("Enter destination folder path")
+
+    if st.button("Apply Action"):
+        for file in list(st.session_state.selected_files):
+            try:
+                if os.path.isdir(file):
+                    shutil.rmtree(file)
+                else:
+                    os.remove(file)
+                if action == "Move" and dest_folder:
+                    dest_path = os.path.join(dest_folder, os.path.basename(file))
+                    shutil.move(file, dest_path)
+                st.session_state.selected_files.discard(file)
+            except Exception as e:
+                st.error(f"Failed to {action.lower()} {file}: {e}")
+
+        st.success(f"{action} completed.")
