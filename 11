@@ -1,0 +1,148 @@
+import os
+import streamlit as st
+import pandas as pd
+from datetime import datetime, timedelta
+import humanize
+
+st.set_page_config(layout="wide", page_title="Old File Cleaner", initial_sidebar_state="expanded")
+st.title("Old File Cleaner")
+
+# --- Session State Initialization ---
+if 'selected_files' not in st.session_state:
+    st.session_state.selected_files = set()
+
+if 'scanned_data' not in st.session_state:
+    st.session_state.scanned_data = {}
+
+# --- Helper Functions ---
+def get_file_info(file_path):
+    try:
+        stat = os.stat(file_path)
+        return {
+            "Name": os.path.basename(file_path),
+            "Relative Path": file_path,
+            "Size": humanize.naturalsize(stat.st_size),
+            "Created On": datetime.fromtimestamp(stat.st_ctime).strftime('%Y-%m-%d %H:%M:%S'),
+            "Last Accessed": datetime.fromtimestamp(stat.st_atime).strftime('%Y-%m-%d %H:%M:%S')
+        }
+    except Exception:
+        return None
+
+def scan_directory(path, threshold_date, base_path, depth=0):
+    scanned = []
+    try:
+        for entry in os.scandir(path):
+            full_path = entry.path
+            rel_path = os.path.relpath(full_path, base_path)
+            if entry.is_file():
+                created = datetime.fromtimestamp(os.stat(full_path).st_ctime)
+                if created < threshold_date:
+                    scanned.append((depth, full_path))
+            elif entry.is_dir():
+                scanned.append((depth, full_path))
+                scanned += scan_directory(full_path, threshold_date, base_path, depth + 1)
+    except PermissionError:
+        pass
+    return scanned
+
+def display_file_tree(folder, files, base_path):
+    folder_selected = st.checkbox(f"Select All in '{os.path.basename(folder)}'", key=f"{folder}_selectall")
+    container = st.container()
+    with container:
+        for depth, file_path in files:
+            rel_path = os.path.relpath(file_path, base_path)
+            indent = f"<div style='margin-left: {depth * 20}px;'>"
+            is_file = os.path.isfile(file_path)
+            label = os.path.basename(file_path) + ("/" if not is_file else "")
+            checkbox_key = f"checkbox_{file_path}"
+            checked = folder_selected or checkbox_key in st.session_state.selected_files
+            checkbox = st.checkbox(
+                label=label,
+                key=checkbox_key,
+                value=checkbox_key in st.session_state.selected_files or folder_selected
+            )
+            if checkbox:
+                st.session_state.selected_files.add(file_path)
+            else:
+                st.session_state.selected_files.discard(file_path)
+            st.markdown(f"{indent}</div>", unsafe_allow_html=True)
+
+# --- Input Section ---
+st.sidebar.subheader("Folder Inputs")
+input_folders = []
+num_folders = st.sidebar.number_input("How many folders do you want to scan?", min_value=1, max_value=5, step=1)
+
+for i in range(num_folders):
+    folder = st.sidebar.text_input(f"Folder {i+1} Path")
+    if folder:
+        input_folders.append(folder)
+
+# --- Threshold Selection ---
+st.sidebar.subheader("Threshold for file age")
+date_mode = st.sidebar.radio("Select mode:", ["Days ago", "Specific date"])
+
+if date_mode == "Days ago":
+    days = st.sidebar.slider("Number of days", min_value=1, max_value=365, value=30)
+    threshold_date = datetime.now() - timedelta(days=days)
+else:
+    selected_date = st.sidebar.date_input("Select date")
+    threshold_date = datetime.combine(selected_date, datetime.min.time())
+
+# --- Scan Button ---
+if st.sidebar.button("Scan Now"):
+    st.session_state.scanned_data = {}
+    st.session_state.selected_files = set()
+    for folder in input_folders:
+        if os.path.isdir(folder):
+            files = scan_directory(folder, threshold_date, base_path=folder)
+            st.session_state.scanned_data[folder] = files
+
+# --- Display Section ---
+if st.session_state.scanned_data:
+    st.subheader("Scanned Results")
+    for folder, files in st.session_state.scanned_data.items():
+        with st.expander(f"Contents of: {folder}", expanded=False):
+            display_file_tree(folder, files, base_path=folder)
+
+    if st.button("Preview Selected Files"):
+        selected_infos = [get_file_info(path) for path in st.session_state.selected_files if os.path.isfile(path)]
+        df = pd.DataFrame(filter(None, selected_infos))
+        st.dataframe(df, use_container_width=True)
+
+        if not df.empty:
+            export_name = f"scan_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            df.to_excel(export_name, index=False)
+            with open(export_name, "rb") as f:
+                st.download_button("Download Excel Report", f, file_name=export_name)
+
+# --- Deletion Page ---
+st.sidebar.subheader("Deletion Interface")
+if st.sidebar.checkbox("Go to Deletion Page"):
+    st.subheader("Delete or Move Files Based on Excel")
+    uploaded = st.file_uploader("Upload Excel file with paths", type=["xlsx"])
+    action = st.radio("Choose action", ["Delete Files", "Move Files"])
+    target_folder = None
+    if action == "Move Files":
+        target_folder = st.text_input("Enter target folder path")
+
+    if uploaded and st.button("Process Now"):
+        df = pd.read_excel(uploaded)
+        paths = df["Relative Path"].tolist()
+        results = []
+        for path in paths:
+            if os.path.exists(path):
+                try:
+                    if action == "Delete Files":
+                        os.remove(path)
+                        results.append((path, "Deleted"))
+                    elif action == "Move Files" and target_folder:
+                        new_path = os.path.join(target_folder, os.path.basename(path))
+                        os.rename(path, new_path)
+                        results.append((path, f"Moved to {new_path}"))
+                except Exception as e:
+                    results.append((path, f"Error: {str(e)}"))
+            else:
+                results.append((path, "Not Found"))
+
+        res_df = pd.DataFrame(results, columns=["Path", "Status"])
+        st.dataframe(res_df, use_container_width=True)
