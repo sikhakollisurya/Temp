@@ -1,0 +1,80 @@
+import os
+import shutil
+import time
+import streamlit as st
+from datetime import datetime
+
+st.set_page_config(layout="wide", page_title="Old File Cleaner")
+
+# === Sidebar Configuration ===
+st.sidebar.title("Settings")
+folder_path = st.sidebar.text_input("Folder Path", "C:/path/to/your/folder")
+days_threshold = st.sidebar.slider("Days Threshold", 1, 365, 30)
+operation = st.sidebar.selectbox("Operation", ["Delete", "Move"])
+if operation == "Move":
+    destination = st.sidebar.text_input("Destination Folder", "C:/path/to/destination")
+
+st.title("Old File Cleaner")
+st.markdown("**Scan for old files/folders and choose which ones to delete or move.**")
+
+# === Helper Functions ===
+def get_old_items(folder, days):
+    cutoff = time.time() - (days * 86400)
+    old_items = []
+    for root, dirs, files in os.walk(folder):
+        for name in files + dirs:
+            path = os.path.join(root, name)
+            try:
+                modified = os.path.getmtime(path)
+                if modified < cutoff:
+                    size = os.path.getsize(path) if os.path.isfile(path) else 0
+                    old_items.append({
+                        "path": path,
+                        "modified": datetime.fromtimestamp(modified).strftime('%Y-%m-%d %H:%M'),
+                        "size_kb": size // 1024
+                    })
+            except:
+                continue
+    return old_items
+
+def readable_name(item):
+    return f"{item['path']} (Last Modified: {item['modified']}, Size: {item['size_kb']} KB)"
+
+# === Main Interface ===
+if os.path.exists(folder_path):
+    old_items = get_old_items(folder_path, days_threshold)
+
+    if old_items:
+        st.subheader("Select files/folders to process:")
+        selected_paths = []
+
+        for item in old_items:
+            if st.checkbox(readable_name(item), key=item["path"]):
+                selected_paths.append(item["path"])
+
+        if selected_paths:
+            confirm = st.checkbox("I confirm I want to proceed with this operation.")
+            if st.button(f"{operation} Selected Items"):
+                if confirm:
+                    for path in selected_paths:
+                        try:
+                            if operation == "Delete":
+                                if os.path.isfile(path):
+                                    os.remove(path)
+                                else:
+                                    shutil.rmtree(path)
+                            elif operation == "Move":
+                                base = os.path.basename(path)
+                                dest = os.path.join(destination, base)
+                                shutil.move(path, dest)
+                        except Exception as e:
+                            st.error(f"Error processing {path}: {e}")
+                    st.success(f"{operation} operation completed on {len(selected_paths)} items.")
+                else:
+                    st.warning("Please confirm the operation first.")
+        else:
+            st.info("No items selected.")
+    else:
+        st.info("No old files or folders found based on the threshold.")
+else:
+    st.warning("Please enter a valid folder path.")
