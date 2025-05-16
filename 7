@@ -1,0 +1,5 @@
+folder_label = f"{indent}**📁 {key}**"
+folder_selected = st.checkbox(label=folder_label, key=unique_key)
+
+file_label = f"{indent}{key} ({content['Size (KB)']} KB)"
+file_selected = st.checkbox(label=file_label, key=unique_key)
