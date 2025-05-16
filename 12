@@ -1,0 +1,196 @@
+import streamlit as st
+import os
+import pandas as pd
+from datetime import datetime, timedelta
+from pathlib import Path
+
+st.set_page_config(layout="wide", page_title="Old File Cleaner", page_icon="\U0001F5C3")
+st.title("Old File Cleaner")
+
+# Utility to get human-readable file size
+def get_size(bytes_size):
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if bytes_size < 1024:
+            return f"{bytes_size:.2f} {unit}"
+        bytes_size /= 1024
+    return f"{bytes_size:.2f} PB"
+
+# Recursively scan files and folders
+def scan_directory(base_path, threshold_date):
+    scanned_data = []
+
+    def recurse(path, relative_root=""):
+        try:
+            entries = list(Path(path).iterdir())
+        except PermissionError:
+            return []
+
+        contents = []
+        for entry in entries:
+            rel_path = os.path.relpath(entry, base_path)
+            display_name = os.path.join(relative_root, entry.name)
+
+            try:
+                stat = entry.stat()
+                ctime = datetime.fromtimestamp(stat.st_ctime)
+                size = stat.st_size if entry.is_file() else 0
+            except Exception:
+                continue
+
+            children = []
+            if entry.is_dir():
+                children = recurse(entry, os.path.join(relative_root, entry.name))
+
+            if entry.is_file() and ctime < threshold_date:
+                contents.append({
+                    "path": str(entry),
+                    "name": entry.name,
+                    "display": display_name,
+                    "ctime": ctime,
+                    "size": size,
+                    "children": []
+                })
+            elif entry.is_dir() and children:
+                contents.append({
+                    "path": str(entry),
+                    "name": entry.name,
+                    "display": display_name,
+                    "ctime": ctime,
+                    "size": 0,
+                    "children": children
+                })
+        return contents
+
+    scanned_data.extend(recurse(base_path))
+    return scanned_data
+
+# Show tree with checkboxes and collect selected paths
+def display_tree(tree_data, level=0, parent_checked=False):
+    selected_paths = []
+
+    for node in tree_data:
+        indent = "\u2003" * level
+        checked = st.checkbox(f"{indent}{node['name']}", key=node['path'], value=parent_checked)
+
+        if checked:
+            selected_paths.append(node['path'])
+
+        if node['children']:
+            child_selected = display_tree(node['children'], level + 1, parent_checked=checked)
+            selected_paths.extend(child_selected)
+
+    return selected_paths
+
+# Hybrid threshold input method
+def get_threshold_date():
+    col1, col2 = st.columns(2)
+    with col1:
+        days = st.number_input("Delete files older than N days", min_value=0, value=30)
+    with col2:
+        specific_date = st.date_input("Or select a specific date")
+
+    user_choice = st.radio("Choose threshold method", ["Use Days", "Use Specific Date"])
+
+    if user_choice == "Use Days":
+        return datetime.now() - timedelta(days=days)
+    else:
+        return datetime.combine(specific_date, datetime.min.time())
+
+# Export to Excel
+def export_to_excel(data):
+    if not data:
+        st.warning("No data to export.")
+        return
+
+    df = pd.DataFrame(data)
+    df = df[["path", "ctime", "size"]]
+    df["ctime"] = df["ctime"].astype(str)
+    df["size"] = df["size"].apply(get_size)
+
+    file_name = "scan_results.xlsx"
+    df.to_excel(file_name, index=False)
+    with open(file_name, "rb") as f:
+        st.download_button("Download Scan Results", f, file_name=file_name)
+
+# SCANNING INTERFACE
+st.subheader("Step 1: Select Folders and Scan")
+
+input_folders = st.file_uploader("Upload folder paths as a text file (one per line)", type="txt")
+folders = []
+
+if input_folders:
+    content = input_folders.read().decode("utf-8")
+    folders = [line.strip() for line in content.splitlines() if line.strip()]
+
+if folders:
+    threshold_date = get_threshold_date()
+    if st.button("Scan Now"):
+        st.session_state.scanned_data = {}
+        for folder in folders:
+            if os.path.exists(folder):
+                st.session_state.scanned_data[folder] = scan_directory(folder, threshold_date)
+
+# DISPLAY SCANNED TREE
+if "scanned_data" in st.session_state:
+    st.subheader("Step 2: Review and Select Files")
+    selected_files = []
+
+    for folder in folders:
+        if folder in st.session_state.scanned_data:
+            with st.expander(f"{folder}", expanded=True):
+                files = display_tree(st.session_state.scanned_data[folder])
+                selected_files.extend(files)
+
+    st.markdown("---")
+    st.markdown(f"**Total Selected Files:** {len(selected_files)}")
+
+    export_data = []
+    for path in selected_files:
+        try:
+            stat = os.stat(path)
+            export_data.append({
+                "path": path,
+                "ctime": datetime.fromtimestamp(stat.st_ctime),
+                "size": stat.st_size
+            })
+        except Exception:
+            continue
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Export Selected to Excel"):
+            export_to_excel(export_data)
+    with col2:
+        if st.button("Delete Selected Files"):
+            for path in selected_files:
+                try:
+                    if os.path.isfile(path):
+                        os.remove(path)
+                    elif os.path.isdir(path):
+                        os.rmdir(path)
+                except Exception as e:
+                    st.error(f"Failed to delete {path}: {e}")
+
+# DELETION INTERFACE FROM CSV
+st.markdown("---")
+st.subheader("Step 3: Delete Files from Uploaded Excel")
+
+csv_file = st.file_uploader("Upload Excel file with 'path' column", type=["xlsx"])
+
+if csv_file:
+    try:
+        df = pd.read_excel(csv_file)
+        if "path" in df.columns:
+            if st.button("Delete Files from Excel"):
+                for path in df["path"]:
+                    try:
+                        if os.path.isfile(path):
+                            os.remove(path)
+                        elif os.path.isdir(path):
+                            os.rmdir(path)
+                    except Exception as e:
+                        st.error(f"Failed to delete {path}: {e}")
+        else:
+            st.warning("Excel must contain a 'path' column.")
+    except Exception as e:
+        st.error(f"Error reading Excel file: {e}")
