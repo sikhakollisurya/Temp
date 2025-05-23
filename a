@@ -1,0 +1,81 @@
+# app.py
+import streamlit as st
+import os
+import pandas as pd
+from pathlib import Path
+
+st.set_page_config(page_title="Data Dictionary Explorer", layout="wide")
+
+# --- Helper: Load Excel files ---
+@st.cache_data
+def load_excel_files_from_folder(folder_path):
+    data_dict = []
+    for file in Path(folder_path).glob("*.xlsx"):
+        try:
+            xls = pd.ExcelFile(file)
+            for sheet_name in xls.sheet_names:
+                try:
+                    df = xls.parse(sheet_name)
+                    df.columns = [str(col).lower() for col in df.columns]
+
+                    # Try to extract common columns
+                    dataset_col = next((c for c in df.columns if 'dataset' in c), None)
+                    variable_col = next((c for c in df.columns if 'variable' in c), None)
+                    description_col = next((c for c in df.columns if 'description' in c), None)
+
+                    if all([dataset_col, variable_col, description_col]):
+                        for _, row in df.iterrows():
+                            data_dict.append({
+                                "Dataset": str(row[dataset_col]),
+                                "Variable": str(row[variable_col]),
+                                "Description": str(row[description_col]),
+                                "Source File": file.name,
+                                "Sheet": sheet_name
+                            })
+                except Exception:
+                    continue
+        except Exception:
+            continue
+    return pd.DataFrame(data_dict)
+
+# --- Main App ---
+st.title("Data Dictionary Explorer")
+current_folder = os.getcwd()
+st.caption(f"Scanning Excel files in: `{current_folder}`")
+
+with st.spinner("Loading data..."):
+    df = load_excel_files_from_folder(current_folder)
+
+if df.empty:
+    st.warning("No valid data dictionary entries found.")
+    st.stop()
+
+# --- Filters ---
+st.sidebar.header("Search Filters")
+dataset_filter = st.sidebar.text_input("Dataset")
+variable_filter = st.sidebar.text_input("Variable")
+description_filter = st.sidebar.text_input("Description")
+general_filter = st.sidebar.text_input("General Search (across all)")
+
+filtered_df = df.copy()
+
+if dataset_filter:
+    filtered_df = filtered_df[filtered_df["Dataset"].str.contains(dataset_filter, case=False, na=False)]
+if variable_filter:
+    filtered_df = filtered_df[filtered_df["Variable"].str.contains(variable_filter, case=False, na=False)]
+if description_filter:
+    filtered_df = filtered_df[filtered_df["Description"].str.contains(description_filter, case=False, na=False)]
+
+if general_filter:
+    mask = (
+        filtered_df["Dataset"].str.contains(general_filter, case=False, na=False) |
+        filtered_df["Variable"].str.contains(general_filter, case=False, na=False) |
+        filtered_df["Description"].str.contains(general_filter, case=False, na=False)
+    )
+    filtered_df = filtered_df[mask]
+
+st.success(f"Showing {len(filtered_df)} matching entries.")
+st.dataframe(filtered_df, use_container_width=True)
+
+# --- Export ---
+st.download_button("Download Filtered Results as CSV", data=filtered_df.to_csv(index=False), file_name="filtered_data_dict.csv")
