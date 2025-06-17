@@ -1,0 +1,20 @@
+import xlwings as xw
+import pandas as pd
+
+# Open the Excel workbook
+wb = xw.Book('your_file.xlsx')
+
+# Ensure the workbook recalculates the formulas
+wb.app.calculate()
+
+# Read the sheet into a pandas dataframe
+sheet = wb.sheets['Sheet1']
+df = sheet.range('A1').expand().value  # Adjust to your desired range
+
+# Close the workbook
+wb.close()
+
+# Convert the list to a DataFrame
+df = pd.DataFrame(df)
+
+print(df)
