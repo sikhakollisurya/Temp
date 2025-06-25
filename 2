@@ -1,0 +1,21 @@
+import xlwings as xw
+import pandas as pd
+
+# Open the workbook
+wb = xw.Book('your_file.xlsx')  # or xw.Book.caller() if running from Excel
+sheet = wb.sheets['Sheet1']     # change to your sheet name
+
+# Get the full used range (includes blanks inside)
+used_range = sheet.used_range
+
+# Get top-left and bottom-right cell
+top_left = used_range[0, 0]
+bottom_right = used_range[-1, -1]
+
+# Define the full rectangular range
+full_range = sheet.range(top_left, bottom_right)
+
+# Load into DataFrame (assumes first row is header)
+df = full_range.options(pd.DataFrame, header=True, index=False).value
+
+print(df)
