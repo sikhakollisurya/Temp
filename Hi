@@ -1,0 +1,49 @@
+import streamlit as st
+
+# Step 1: Hardcoded user credentials
+# (you can replace this with a database or file if needed)
+USER_CREDENTIALS = {
+    "admin": "admin123",
+    "john": "doe456",
+    "jane": "welcome"
+}
+
+# Step 2: Login page function
+def login():
+    st.title("🔐 Login Page")
+
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+        if username in USER_CREDENTIALS and USER_CREDENTIALS[username] == password:
+            st.session_state['logged_in'] = True
+            st.session_state['username'] = username
+            st.success(f"Welcome, {username}!")
+            st.experimental_rerun()
+        else:
+            st.error("Invalid username or password.")
+
+# Step 3: Main app after login
+def main_app():
+    st.title("🏠 Welcome to the Main App")
+    st.write(f"Hello, {st.session_state['username']}!")
+
+    if st.button("Logout"):
+        st.session_state['logged_in'] = False
+        st.session_state['username'] = ""
+        st.experimental_rerun()
+
+# Step 4: Entry point with session check
+def main():
+    if 'logged_in' not in st.session_state:
+        st.session_state['logged_in'] = False
+        st.session_state['username'] = ""
+
+    if st.session_state['logged_in']:
+        main_app()
+    else:
+        login()
+
+if __name__ == "__main__":
+    main()
