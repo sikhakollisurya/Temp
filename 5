@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Banking Reporting & Intelligence · Executive Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy:       #08111f;
+    --navy-mid:   #0c1c35;
+    --navy-card:  #0e2040;
+    --gold:       #c9a84c;
+    --gold-light: #e3c46a;
+    --gold-pale:  #f5e9c2;
+    --teal:       #1a7a7a;
+    --teal-light: #2ab5a5;
+    --white:      #eef2f7;
+    --dim:        rgba(238,242,247,0.45);
+    --divider:    rgba(201,168,76,0.13);
+    --card-bdr:   rgba(201,168,76,0.16);
+  }
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'DM Sans',sans-serif;background:var(--navy);color:var(--white);min-height:100vh;}
+  body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:radial-gradient(ellipse 90% 55% at 75% 5%,rgba(201,168,76,0.06) 0%,transparent 65%),
+               radial-gradient(ellipse 55% 45% at 5% 85%,rgba(26,122,122,0.07) 0%,transparent 55%),
+               repeating-linear-gradient(0deg,transparent,transparent 47px,rgba(201,168,76,0.025) 48px),
+               repeating-linear-gradient(90deg,transparent,transparent 47px,rgba(201,168,76,0.025) 48px);}
+  .page{position:relative;z-index:1;max-width:1480px;margin:0 auto;padding:0 36px 52px;}
+
+/* HEADER */
+header{display:flex;align-items:flex-end;justify-content:space-between;padding:38px 0 26px;border-bottom:1px solid var(–divider);margin-bottom:28px;animation:fadeDown .55s ease both;}
+.eyebrow{font-family:‘DM Mono’,monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(–gold);margin-bottom:8px;}
+h1{font-family:‘Playfair Display’,serif;font-size:clamp(24px,3vw,40px);font-weight:700;line-height:1.08;letter-spacing:-.02em;}
+h1 em{color:var(–gold-light);font-style:normal;}
+.header-right{text-align:right;}
+.live-pill{display:inline-flex;align-items:center;gap:8px;background:rgba(201,168,76,0.1);border:1px solid var(–card-bdr);border-radius:4px;padding:7px 14px;font-size:11.5px;font-weight:500;color:var(–gold-light);letter-spacing:.04em;}
+.live-pill::before{content:’’;width:7px;height:7px;border-radius:50%;background:var(–gold);animation:pulse 2.2s ease infinite;}
+.header-sub{font-size:11px;color:var(–dim);margin-top:7px;}
+
+/* TEAM BANNER */
+.team-banner{display:grid;grid-template-columns:1fr 1px 1fr;background:rgba(255,255,255,0.025);border:1px solid var(–card-bdr);border-radius:10px;overflow:hidden;margin-bottom:26px;animation:fadeUp .55s .08s ease both;}
+.team-half{display:flex;align-items:center;gap:20px;padding:20px 28px;}
+.team-half.rep{background:rgba(26,122,122,0.07);}
+.team-half.eng{background:rgba(201,168,76,0.05);}
+.t-icon{width:50px;height:50px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+.t-icon.r{background:rgba(42,181,165,0.14);border:1px solid rgba(42,181,165,0.28);}
+.t-icon.e{background:rgba(201,168,76,0.14);border:1px solid rgba(201,168,76,0.28);}
+.t-label{font-family:‘DM Mono’,monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(–dim);margin-bottom:3px;}
+.t-name{font-family:‘Playfair Display’,serif;font-size:16px;font-weight:600;}
+.t-name.r{color:var(–teal-light);}.t-name.e{color:var(–gold-light);}
+.t-desc{font-size:11.5px;color:var(–dim);margin-top:2px;}
+.team-divider{background:var(–divider);}
+.avatars{margin-left:auto;display:flex;}
+.av{width:30px;height:30px;border-radius:50%;border:2px solid var(–navy-mid);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;margin-left:-7px;flex-shrink:0;}
+.av.r{background:var(–teal);color:#fff;}.av.e{background:var(–gold);color:var(–navy);}
+.dual-pill{font-size:9px;font-family:‘DM Mono’,monospace;letter-spacing:.1em;background:linear-gradient(90deg,rgba(42,181,165,0.2),rgba(201,168,76,0.2));border:1px solid rgba(201,168,76,0.22);border-radius:20px;padding:4px 12px;color:var(–gold-pale);margin-left:auto;white-space:nowrap;}
+
+/* SECTION LABEL */
+.slbl{font-family:‘DM Mono’,monospace;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(–gold);margin-bottom:12px;margin-top:8px;display:flex;align-items:center;gap:10px;}
+.slbl::after{content:’’;flex:1;height:1px;background:var(–divider);}
+
+/* KPI STRIP */
+.kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:26px;animation:fadeUp .55s .14s ease both;}
+.kpi{background:var(–navy-card);border:1px solid var(–card-bdr);border-radius:10px;padding:22px 22px 18px;position:relative;overflow:hidden;transition:border-color .2s,transform .2s;}
+.kpi:hover{border-color:rgba(201,168,76,0.4);transform:translateY(-3px);}
+.kpi::after{content:’’;position:absolute;bottom:0;left:0;right:0;height:2px;}
+.kpi.k-teal::after{background:linear-gradient(90deg,transparent,var(–teal-light),transparent);}
+.kpi.k-gold::after{background:linear-gradient(90deg,transparent,var(–gold),transparent);}
+.kpi.k-dual::after{background:linear-gradient(90deg,var(–teal-light),var(–gold));}
+.kpi-lbl{font-family:‘DM Mono’,monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(–dim);margin-bottom:10px;}
+.kpi-icon{font-size:18px;margin-bottom:8px;}
+.kpi-val{font-family:‘Playfair Display’,serif;font-size:42px;font-weight:700;line-height:1;letter-spacing:-.03em;}
+.kv-teal{color:var(–teal-light);}.kv-gold{color:var(–gold-light);}.kv-white{color:var(–white);}
+.kpi-unit{font-size:20px;}
+.kpi-sub{font-size:11px;color:var(–dim);margin-top:6px;}
+.kpi-delta{font-size:11px;font-weight:600;margin-top:4px;}
+.up{color:#4ade80;}.dn{color:#f87171;}
+.target-wrap{margin-top:10px;}
+.target-hdr{display:flex;justify-content:space-between;font-size:9.5px;color:var(–dim);margin-bottom:4px;font-family:‘DM Mono’,monospace;}
+.target-rail{height:5px;background:rgba(255,255,255,0.07);border-radius:3px;}
+.target-fill{height:100%;border-radius:3px;}
+
+/* CARD */
+.card{background:var(–navy-card);border:1px solid var(–card-bdr);border-radius:10px;padding:24px;animation:fadeUp .55s .22s ease both;}
+.card-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;}
+.card-title{font-family:‘Playfair Display’,serif;font-size:16px;font-weight:600;}
+.chip{font-size:9px;font-family:‘DM Mono’,monospace;letter-spacing:.12em;text-transform:uppercase;padding:4px 11px;border-radius:20px;}
+.chip-teal{background:rgba(42,181,165,0.14);color:var(–teal-light);border:1px solid rgba(42,181,165,0.28);}
+.chip-gold{background:rgba(201,168,76,0.14);color:var(–gold-light);border:1px solid rgba(201,168,76,0.28);}
+.chip-dual{background:linear-gradient(90deg,rgba(42,181,165,0.12),rgba(201,168,76,0.12));color:var(–white);border:1px solid rgba(201,168,76,0.2);}
+
+/* TABLE */
+table{width:100%;border-collapse:collapse;}
+th{text-align:left;font-family:‘DM Mono’,monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(–dim);padding-bottom:10px;font-weight:400;border-bottom:1px solid var(–divider);}
+td{padding:10px 0;font-size:12.5px;border-bottom:1px solid rgba(201,168,76,0.05);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+.rtype{font-size:9px;font-family:‘DM Mono’,monospace;padding:2px 8px;border-radius:3px;display:inline-block;}
+.rt-reg{background:rgba(42,181,165,0.12);color:var(–teal-light);}
+.rt-exec{background:rgba(201,168,76,0.12);color:var(–gold-light);}
+.rt-risk{background:rgba(248,113,113,0.12);color:#f87171;}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:6px;}
+.d-g{background:#4ade80;box-shadow:0 0 6px rgba(74,222,128,.55);}
+.d-y{background:#facc15;box-shadow:0 0 6px rgba(250,204,21,.5);}
+.prog{height:4px;background:rgba(255,255,255,0.07);border-radius:2px;width:56px;}
+.prog-f{height:100%;border-radius:2px;}
+
+/* MAIN GRID */
+.main-grid{display:grid;grid-template-columns:1.35fr 1fr;gap:18px;margin-bottom:18px;}
+.right-col{display:flex;flex-direction:column;gap:18px;}
+
+/* DONUT */
+.donut-wrap{display:flex;align-items:center;gap:22px;}
+.legend-row{display:flex;align-items:center;gap:9px;margin-bottom:11px;}
+.legend-row:last-child{margin-bottom:0;}
+.l-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
+.l-lbl{font-size:12px;color:var(–dim);flex:1;}
+.l-val{font-size:13px;font-weight:600;font-family:‘DM Mono’,monospace;}
+
+/* ENGAGEMENT */
+.eng-item{display:flex;gap:13px;padding:11px 0;border-bottom:1px solid rgba(201,168,76,0.06);}
+.eng-item:last-child{border-bottom:none;}
+.eng-date{font-family:‘DM Mono’,monospace;font-size:10px;color:var(–dim);min-width:48px;padding-top:2px;}
+.eng-spine{display:flex;flex-direction:column;align-items:center;padding-top:5px;}
+.eng-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.eng-line{width:1px;background:var(–divider);flex:1;margin-top:4px;min-height:18px;}
+.eng-body{flex:1;}
+.eng-ttl{font-size:12.5px;font-weight:500;margin-bottom:2px;}
+.eng-sub{font-size:11px;color:var(–dim);}
+.eng-tags{display:flex;gap:5px;margin-top:5px;flex-wrap:wrap;}
+.etag{font-size:9px;font-family:‘DM Mono’,monospace;padding:2px 7px;border-radius:3px;}
+.et-g{background:rgba(201,168,76,0.12);color:var(–gold-light);border:1px solid rgba(201,168,76,0.2);}
+.et-t{background:rgba(42,181,165,0.12);color:var(–teal-light);border:1px solid rgba(42,181,165,0.2);}
+
+/* BOTTOM */
+.bottom-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;animation:fadeUp .55s .3s ease both;}
+.mbr{margin-bottom:13px;}
+.mbr-hdr{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;}
+.mbr-name{font-size:12px;font-weight:500;}
+.mbr-role{font-size:9px;font-family:‘DM Mono’,monospace;margin-left:4px;}
+.mbr-pct{font-size:11px;font-family:‘DM Mono’,monospace;color:var(–dim);}
+.cap-rail{height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;}
+.cap-fill{height:100%;border-radius:3px;}
+.cap-r{background:linear-gradient(90deg,var(–teal),var(–teal-light));}
+.cap-d{background:linear-gradient(90deg,var(–teal),var(–gold));}
+.cap-legend{display:flex;gap:14px;font-size:9.5px;font-family:‘DM Mono’,monospace;margin-top:12px;padding-top:10px;border-top:1px solid var(–divider);color:var(–dim);}
+
+/* QUALITY */
+.q-big{text-align:center;padding:6px 0 14px;border-bottom:1px solid var(–divider);margin-bottom:12px;}
+.q-num{font-family:‘Playfair Display’,serif;font-size:56px;font-weight:700;color:var(–gold-light);line-height:1;}
+.q-den{font-size:20px;color:var(–dim);}
+.q-sub{font-size:11px;color:var(–dim);margin-top:4px;}
+.q-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(201,168,76,0.06);font-size:12px;}
+.q-row:last-child{border-bottom:none;}
+.q-val{font-family:‘DM Mono’,monospace;font-size:12px;}
+.cg{color:#4ade80;}.co{color:var(–gold-light);}.cr{color:#f87171;}
+
+/* WINS */
+.win{padding:12px 0;border-bottom:1px solid var(–divider);}
+.win:last-child{border-bottom:none;}
+.win-hdr{display:flex;align-items:center;gap:8px;margin-bottom:3px;}
+.win-ico{font-size:15px;}
+.win-ttl{font-size:13px;font-weight:600;}
+.win-dsc{font-size:11.5px;color:var(–dim);line-height:1.5;}
+.win-imp{font-size:10px;font-family:‘DM Mono’,monospace;color:var(–gold);margin-top:4px;}
+
+/* FOOTER */
+footer{display:flex;justify-content:space-between;align-items:center;margin-top:32px;padding-top:18px;border-top:1px solid var(–divider);font-size:10px;color:var(–dim);font-family:‘DM Mono’,monospace;letter-spacing:.07em;animation:fadeUp .55s .38s ease both;}
+.footer-brand{color:var(–gold);}
+
+@keyframes fadeDown{from{opacity:0;transform:translateY(-14px);}to{opacity:1;transform:translateY(0);}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.25;}}
+
+@media(max-width:1120px){.kpi-strip{grid-template-columns:repeat(2,1fr);}.main-grid{grid-template-columns:1fr;}.bottom-grid{grid-template-columns:1fr 1fr;}}
+@media(max-width:680px){.kpi-strip{grid-template-columns:1fr 1fr;}.bottom-grid{grid-template-columns:1fr;}.team-banner{grid-template-columns:1fr;}.team-divider{height:1px;width:100%;}.page{padding:0 16px 40px;}}
+</style>
+
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div>
+      <div class="eyebrow">🏦 Banking Division · Team Performance Office</div>
+      <h1>Reporting &amp; <em>Business Intelligence</em><br>Executive Dashboard</h1>
+    </div>
+    <div class="header-right">
+      <div class="live-pill">Q1 2025 · Reporting Period</div>
+      <div class="header-sub">Prepared for Executive Distribution · March 2025</div>
+    </div>
+  </header>
+
+  <div class="slbl">Team Structure</div>
+  <div class="team-banner">
+    <div class="team-half rep">
+      <div class="t-icon r">📊</div>
+      <div>
+        <div class="t-label">Function 1 · All Members</div>
+        <div class="t-name r">Reporting &amp; Analytics</div>
+        <div class="t-desc">Regulatory, executive &amp; risk reporting · 10 members</div>
+      </div>
+      <div class="avatars">
+        <div class="av r">RK</div><div class="av r">SM</div><div class="av r">JL</div>
+        <div class="av r">TP</div><div class="av r">NA</div>
+        <div class="av r" style="font-size:8px">+5</div>
+      </div>
+    </div>
+    <div class="team-divider"></div>
+    <div class="team-half eng">
+      <div class="t-icon e">🤝</div>
+      <div>
+        <div class="t-label">Function 2 · Dual-Role Members</div>
+        <div class="t-name e">Business Engagement &amp; Intelligence</div>
+        <div class="t-desc">Stakeholder engagement, insights &amp; strategy · 5 members carry both roles</div>
+      </div>
+      <div class="dual-pill">⚡ 5 DUAL-FUNCTION MEMBERS</div>
+    </div>
+  </div>
+
+  <div class="slbl">Key Performance Indicators</div>
+  <div class="kpi-strip">
+    <div class="kpi k-teal">
+      <div class="kpi-icon">📋</div>
+      <div class="kpi-lbl">Reports Delivered</div>
+      <div class="kpi-val kv-teal">142</div>
+      <div class="kpi-sub">Q1 2025 · All report types</div>
+      <div class="kpi-delta up">↑ 18% vs Q4 2024</div>
+      <div class="target-wrap">
+        <div class="target-hdr"><span>Target: 120</span><span>+22 ahead</span></div>
+        <div class="target-rail"><div class="target-fill" style="width:100%;background:var(--teal-light)"></div></div>
+      </div>
+    </div>
+    <div class="kpi k-gold">
+      <div class="kpi-icon">⏱️</div>
+      <div class="kpi-lbl">On-Time Delivery Rate</div>
+      <div class="kpi-val kv-gold">96<span class="kpi-unit">%</span></div>
+      <div class="kpi-sub">SLA threshold: 90%</div>
+      <div class="kpi-delta up">↑ +4 pts vs Q4 · Exceeds SLA</div>
+      <div class="target-wrap">
+        <div class="target-hdr"><span>SLA floor: 90%</span><span>96% actual</span></div>
+        <div class="target-rail"><div class="target-fill" style="width:96%;background:var(--gold)"></div></div>
+      </div>
+    </div>
+    <div class="kpi k-gold">
+      <div class="kpi-icon">🤝</div>
+      <div class="kpi-lbl">Business Engagements</div>
+      <div class="kpi-val kv-white">38</div>
+      <div class="kpi-sub">Meetings, briefings &amp; workshops</div>
+      <div class="kpi-delta up">↑ 12 new stakeholders onboarded</div>
+      <div class="target-wrap">
+        <div class="target-hdr"><span>Target: 30</span><span>+8 ahead</span></div>
+        <div class="target-rail"><div class="target-fill" style="width:100%;background:var(--gold-light)"></div></div>
+      </div>
+    </div>
+    <div class="kpi k-dual">
+      <div class="kpi-icon">🎯</div>
+      <div class="kpi-lbl">Data Quality Score</div>
+      <div class="kpi-val kv-gold">98.4<span class="kpi-unit">%</span></div>
+      <div class="kpi-sub">Accuracy across all outputs</div>
+      <div class="kpi-delta up">↑ Best in division · 0 resubmissions</div>
+      <div class="target-wrap">
+        <div class="target-hdr"><span>Target: 95%</span><span>98.4% actual</span></div>
+        <div class="target-rail"><div class="target-fill" style="width:98%;background:linear-gradient(90deg,var(--teal-light),var(--gold))"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slbl">Reporting Output · Business Engagements</div>
+  <div class="main-grid">
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-title">Report Delivery Tracker</div>
+        <span class="chip chip-teal">Reporting Function</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Report</th><th>Type</th><th>Owner</th><th>Status</th><th>Due</th><th style="text-align:right">Progress</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong style="font-weight:500">APRA Monthly Return</strong></td>
+            <td><span class="rtype rt-reg">Regulatory</span></td>
+            <td style="color:var(--dim);font-size:11px">R. Kumar</td>
+            <td><span class="dot d-g"></span><span style="font-size:11.5px">Delivered</span></td>
+            <td style="font-size:11px;color:var(--dim)">Mar 07</td>
+            <td style="text-align:right"><div class="prog" style="margin-left:auto"><div class="prog-f" style="width:100%;background:var(--teal-light)"></div></div></td>
+          </tr>
+          <tr>
+            <td><strong style="font-weight:500">Board Risk Dashboard</strong></td>
+            <td><span class="rtype rt-exec">Executive</span></td>
+            <td style="color:var(--dim);font-size:11px">S. Mitchell</td>
+            <td><span class="dot d-g"></span><span style="font-size:11.5px">Delivered</span></td>
+            <td style="font-size:11px;color:var(--dim)">Mar 10</td>
+            <td style="text-align:right"><div class="prog" style="margin-left:auto"><div class="prog-f" style="width:100%;background:var(--gold)"></div></div></td>
+          </tr>
+          <tr>
+            <td><strong style="font-weight:500">Credit Risk Monthly</strong></td>
+            <td><span class="rtype rt-risk">Risk</span></td>
+            <td style="color:var(--dim);font-size:11px">J. Lee</td>
+            <td><span class="dot d-g"></span><span style="font-size:11.5px">Delivered</span></td>
+            <td style="font-size:11px;color:var(--dim)">Mar 12</td>
+            <td style="text-align:right"><div class="prog" style="margin-left:auto"><div class="prog-f" style="width:100%;background:#f87171"></div></div></td>
+          </tr>
+          <tr>
+            <td><strong style="font-weight:500">Liquidity Coverage Ratio</strong></td>
+            <td><span class="rtype rt-reg">Regulatory</span></td>
+            <td style="color:var(--dim);font-size:11px">T. Patel</td>
+            <td><span class="dot d-g"></span><span style="font-size:11.5px">Delivered</span></td>
+            <td style="font-size:11px;color:var(--dim)">Mar 15</td>
+            <td style="text-align:right"><div class="prog" style="margin-left:auto"><div class="prog-f" style="width:100%;background:var(--teal-light)"></div></div></td>
+          </tr>
+          <tr>
+            <td><strong style="font-weight:500">CFO Executive Pack</strong></td>
+            <td><span class="rtype rt-exec">Executive</span></td>
+            <td style="color:var(--dim);font-size:11px">N. Ahmed</td>
+            <td><span class="dot d-y"></span><span style="font-size:11.5px">In Review</span></td>
+            <td style="font-size:11px;color:var(--dim)">Mar 22</td>
+            <td style="text-align:right"><div class="prog" style="margin-left:auto"><div class="prog-f" style="width:80%;background:var(--gold)"></div></div></td>
+          </tr>
+          <tr>
+            <td><strong style="font-weight:500">Stress Test Scenario</strong></td>
+            <td><span class="rtype rt-risk">Risk</span></td>
+            <td style="color:var(--dim);font-size:11px">R. Kumar</td>
+            <td><span class="dot d-y"></span><span style="font-size:11.5px">In Progress</span></td>
+            <td style="font-size:11px;color:var(--dim)">Mar 28</td>
+            <td style="text-align:right"><div class="prog" style="margin-left:auto"><div class="prog-f" style="width:60%;background:#f87171"></div></div></td>
+          </tr>
+          <tr>
+            <td><strong style="font-weight:500">Capital Adequacy Q1</strong></td>
+            <td><span class="rtype rt-reg">Regulatory</span></td>
+            <td style="color:var(--dim);font-size:11px">S. Mitchell</td>
+            <td><span class="dot d-g"></span><span style="font-size:11.5px">Delivered</span></td>
+            <td style="font-size:11px;color:var(--dim)">Mar 20</td>
+            <td style="text-align:right"><div class="prog" style="margin-left:auto"><div class="prog-f" style="width:100%;background:var(--teal-light)"></div></div></td>
+          </tr>
+          <tr>
+            <td><strong style="font-weight:500">NPS Intelligence Brief</strong></td>
+            <td><span class="rtype rt-exec">Executive</span></td>
+            <td style="color:var(--dim);font-size:11px">T. Patel</td>
+            <td><span class="dot d-g"></span><span style="font-size:11.5px">Delivered</span></td>
+            <td style="font-size:11px;color:var(--dim)">Mar 18</td>
+            <td style="text-align:right"><div class="prog" style="margin-left:auto"><div class="prog-f" style="width:100%;background:var(--gold)"></div></div></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+```
+<div class="right-col">
+  <div class="card" style="padding:22px 24px;">
+    <div class="card-hdr" style="margin-bottom:14px">
+      <div class="card-title">Report Portfolio Mix</div>
+      <span class="chip chip-teal">142 delivered</span>
+    </div>
+    <div class="donut-wrap">
+      <svg width="104" height="104" viewBox="0 0 104 104" style="flex-shrink:0">
+        <circle cx="52" cy="52" r="40" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="17"/>
+        <circle cx="52" cy="52" r="40" fill="none" stroke="#2ab5a5" stroke-width="17" stroke-dasharray="113.1 251.3" stroke-dashoffset="0" transform="rotate(-90 52 52)"/>
+        <circle cx="52" cy="52" r="40" fill="none" stroke="#c9a84c" stroke-width="17" stroke-dasharray="75.4 251.3" stroke-dashoffset="-113.1" transform="rotate(-90 52 52)"/>
+        <circle cx="52" cy="52" r="40" fill="none" stroke="#f87171" stroke-width="17" stroke-dasharray="62.8 251.3" stroke-dashoffset="-188.5" transform="rotate(-90 52 52)"/>
+        <text x="52" y="49" text-anchor="middle" font-family="Playfair Display" font-size="19" fill="#eef2f7" font-weight="700">142</text>
+        <text x="52" y="62" text-anchor="middle" font-family="DM Sans" font-size="7" fill="rgba(238,242,247,0.45)">TOTAL</text>
+      </svg>
+      <div style="flex:1">
+        <div class="legend-row"><div class="l-dot" style="background:var(--teal-light)"></div><span class="l-lbl">Regulatory</span><span class="l-val" style="color:var(--teal-light)">64 · 45%</span></div>
+        <div class="legend-row"><div class="l-dot" style="background:var(--gold)"></div><span class="l-lbl">Executive</span><span class="l-val" style="color:var(--gold-light)">43 · 30%</span></div>
+        <div class="legend-row"><div class="l-dot" style="background:#f87171"></div><span class="l-lbl">Risk</span><span class="l-val" style="color:#f87171">35 · 25%</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="flex:1;padding:22px 24px;">
+    <div class="card-hdr" style="margin-bottom:10px">
+      <div class="card-title">Business Engagements</div>
+      <span class="chip chip-gold">BI Function</span>
+    </div>
+    <div class="eng-item">
+      <div class="eng-date">Mar 20</div>
+      <div class="eng-spine"><div class="eng-dot" style="background:var(--gold)"></div><div class="eng-line"></div></div>
+      <div class="eng-body"><div class="eng-ttl">CFO Strategy Briefing</div><div class="eng-sub">Capital markets outlook &amp; reporting roadmap</div><div class="eng-tags"><span class="etag et-g">Executive</span><span class="etag et-t">Reporting</span></div></div>
+    </div>
+    <div class="eng-item">
+      <div class="eng-date">Mar 15</div>
+      <div class="eng-spine"><div class="eng-dot" style="background:var(--teal-light)"></div><div class="eng-line"></div></div>
+      <div class="eng-body"><div class="eng-ttl">Risk Committee Workshop</div><div class="eng-sub">Stress testing framework alignment</div><div class="eng-tags"><span class="etag et-t">Risk</span><span class="etag et-g">Intelligence</span></div></div>
+    </div>
+    <div class="eng-item">
+      <div class="eng-date">Mar 08</div>
+      <div class="eng-spine"><div class="eng-dot" style="background:var(--gold)"></div><div class="eng-line"></div></div>
+      <div class="eng-body"><div class="eng-ttl">Retail Banking Insight Session</div><div class="eng-sub">Customer analytics findings to 6 business leaders</div><div class="eng-tags"><span class="etag et-g">BI</span><span class="etag et-g">Stakeholder</span></div></div>
+    </div>
+    <div class="eng-item">
+      <div class="eng-date">Feb 28</div>
+      <div class="eng-spine"><div class="eng-dot" style="background:var(--teal-light)"></div></div>
+      <div class="eng-body"><div class="eng-ttl">Data Governance Forum</div><div class="eng-sub">Led quality standards update across 3 business units</div><div class="eng-tags"><span class="etag et-t">Governance</span><span class="etag et-g">Intelligence</span></div></div>
+    </div>
+  </div>
+</div>
+```
+
+  </div>
+
+  <div class="slbl">Capacity · Quality · Quarter Highlights</div>
+  <div class="bottom-grid">
+    <div class="card">
+      <div class="card-hdr"><div class="card-title">Team Utilisation</div><span class="chip chip-dual">All Members</span></div>
+      <div class="mbr"><div class="mbr-hdr"><span class="mbr-name">R. Kumar<span class="mbr-role" style="color:var(--teal-light)"> · Reporting</span></span><span class="mbr-pct">88%</span></div><div class="cap-rail"><div class="cap-fill cap-r" style="width:88%"></div></div></div>
+      <div class="mbr"><div class="mbr-hdr"><span class="mbr-name">S. Mitchell<span class="mbr-role" style="color:var(--gold-light)"> · Dual ⚡</span></span><span class="mbr-pct">95%</span></div><div class="cap-rail"><div class="cap-fill cap-d" style="width:95%"></div></div></div>
+      <div class="mbr"><div class="mbr-hdr"><span class="mbr-name">J. Lee<span class="mbr-role" style="color:var(--teal-light)"> · Reporting</span></span><span class="mbr-pct">72%</span></div><div class="cap-rail"><div class="cap-fill cap-r" style="width:72%"></div></div></div>
+      <div class="mbr"><div class="mbr-hdr"><span class="mbr-name">T. Patel<span class="mbr-role" style="color:var(--gold-light)"> · Dual ⚡</span></span><span class="mbr-pct">91%</span></div><div class="cap-rail"><div class="cap-fill cap-d" style="width:91%"></div></div></div>
+      <div class="mbr"><div class="mbr-hdr"><span class="mbr-name">N. Ahmed<span class="mbr-role" style="color:var(--gold-light)"> · Dual ⚡</span></span><span class="mbr-pct">84%</span></div><div class="cap-rail"><div class="cap-fill cap-d" style="width:84%"></div></div></div>
+      <div class="mbr"><div class="mbr-hdr"><span class="mbr-name">L. Nguyen<span class="mbr-role" style="color:var(--teal-light)"> · Reporting</span></span><span class="mbr-pct">79%</span></div><div class="cap-rail"><div class="cap-fill cap-r" style="width:79%"></div></div></div>
+      <div class="cap-legend"><span><span style="color:var(--teal-light)">■</span> Reporting only</span><span><span style="color:var(--gold-light)">■</span> Dual-function ⚡</span></div>
+    </div>
+
+```
+<div class="card">
+  <div class="card-hdr"><div class="card-title">Data Quality &amp; Accuracy</div><span class="chip chip-teal">Q1 2025</span></div>
+  <div class="q-big">
+    <div class="q-num">98.4<span class="q-den">%</span></div>
+    <div class="q-sub">Overall accuracy · Division best</div>
+  </div>
+  <div class="q-row"><span style="color:var(--dim)">Regulatory Reports</span><span class="q-val cg">99.1%</span></div>
+  <div class="q-row"><span style="color:var(--dim)">Executive Packs</span><span class="q-val cg">98.7%</span></div>
+  <div class="q-row"><span style="color:var(--dim)">Risk Reports</span><span class="q-val co">97.2%</span></div>
+  <div class="q-row"><span style="color:var(--dim)">BI Intelligence Briefs</span><span class="q-val cg">99.3%</span></div>
+  <div class="q-row"><span style="color:var(--dim)">Corrections raised</span><span class="q-val cr">3</span></div>
+  <div class="q-row"><span style="color:var(--dim)">Resubmissions</span><span class="q-val cg">0</span></div>
+</div>
+
+<div class="card">
+  <div class="card-hdr"><div class="card-title">Quarter Highlights</div><span class="chip chip-gold">Exec Summary</span></div>
+  <div class="win"><div class="win-hdr"><span class="win-ico">🏆</span><span class="win-ttl">APRA 100% Compliant</span></div><div class="win-dsc">Zero regulatory findings or late submissions — third consecutive quarter of clean delivery.</div><div class="win-imp">↑ ZERO regulatory risk exposure this quarter</div></div>
+  <div class="win"><div class="win-hdr"><span class="win-ico">🔗</span><span class="win-ttl">BI Footprint Expanded</span></div><div class="win-dsc">Dual-function team grew stakeholder coverage to 3 new business units, adding 12 exec contacts.</div><div class="win-imp">↑ 38 engagements · +27% on prior quarter</div></div>
+  <div class="win"><div class="win-hdr"><span class="win-ico">⚡</span><span class="win-ttl">Automation Savings</span></div><div class="win-dsc">Pipeline improvements cut manual reporting effort by 30%, redirecting capacity to intelligence work.</div><div class="win-imp">↑ ~120 hrs saved · Reinvested into BI function</div></div>
+  <div class="win"><div class="win-hdr"><span class="win-ico">🎯</span><span class="win-ttl">SLA Exceeded by 6 pts</span></div><div class="win-dsc">96% on-time rate against a 90% SLA — best performance in the division for Q1.</div><div class="win-imp">↑ Consistent across all report types</div></div>
+</div>
+```
+
+  </div>
+
+  <footer>
+    <span class="footer-brand">Banking Reporting &amp; Business Intelligence · Executive Dashboard</span>
+    <span>CONFIDENTIAL · Q1 2025 · For Executive Distribution Only</span>
+    <span>Prepared: March 2025</span>
+  </footer>
+
+</div>
+</body>
+</html>
