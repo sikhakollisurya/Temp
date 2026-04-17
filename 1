@@ -1,20 +1,805 @@
-import xlwings as xw
-import pandas as pd
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CRRT Quarterly Report — Wells Fargo</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --red: #C8102E;
+    --red-dark: #9B0D22;
+    --red-light: #F5D0D6;
+    --gold: #FFCD00;
+    --gold-muted: #F0C000;
+    --black: #1A1A1A;
+    --gray-dark: #3D3D3D;
+    --gray-mid: #757575;
+    --gray-light: #E8E8E8;
+    --gray-bg: #F7F6F4;
+    --white: #FFFFFF;
+    --green: #2E7D32;
+    --amber: #E65100;
+    --font-display: 'Cormorant Garamond', Georgia, serif;
+    --font-body: 'IBM Plex Sans', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+  }
 
-# Open the Excel workbook
-wb = xw.Book('your_file.xlsx')
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-# Ensure the workbook recalculates the formulas
-wb.app.calculate()
+  html { scroll-behavior: smooth; }
 
-# Read the sheet into a pandas dataframe
-sheet = wb.sheets['Sheet1']
-df = sheet.range('A1').expand().value  # Adjust to your desired range
+  body {
+    font-family: var(--font-body);
+    background: var(--gray-bg);
+    color: var(--black);
+    font-size: 14px;
+    line-height: 1.6;
+  }
 
-# Close the workbook
-wb.close()
+  /* ─── HEADER ─── */
+  .header {
+    background: var(--red);
+    padding: 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 5px;
+    background: var(--gold);
+  }
+  .header-inner {
+    display: flex;
+    align-items: stretch;
+    justify-content: space-between;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 28px 40px 32px;
+  }
+  .header-brand {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .header-logo {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--white);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .header-subtitle {
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.75);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .header-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 6px;
+  }
+  .quarter-badge {
+    background: var(--gold);
+    color: var(--red-dark);
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 5px 14px;
+    border-radius: 2px;
+  }
+  .report-date {
+    font-size: 11px;
+    color: rgba(255,255,255,0.6);
+    letter-spacing: 0.05em;
+  }
 
-# Convert the list to a DataFrame
-df = pd.DataFrame(df)
+  /* ─── MAIN LAYOUT ─── */
+  .main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 36px 40px 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
 
-print(df)
+  /* ─── SECTION HEADERS ─── */
+  .section-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .section-label::before {
+    content: '';
+    display: block;
+    width: 4px;
+    height: 18px;
+    background: var(--red);
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .section-label span {
+    font-family: var(--font-body);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--gray-mid);
+  }
+
+  /* ─── CARDS ─── */
+  .card {
+    background: var(--white);
+    border-radius: 4px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.04);
+    padding: 28px 32px;
+    transition: box-shadow 0.2s ease;
+  }
+  .card:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05);
+  }
+
+  /* ─── KPI ROW ─── */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .kpi-card {
+    background: var(--white);
+    border-radius: 4px;
+    padding: 24px 28px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.04);
+    position: relative;
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+  }
+  .kpi-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+  .kpi-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 3px;
+    background: var(--red);
+  }
+  .kpi-card.gold::after { background: var(--gold); }
+  .kpi-card.neutral::after { background: var(--gray-light); }
+  .kpi-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--gray-mid);
+    margin-bottom: 10px;
+  }
+  .kpi-value {
+    font-family: var(--font-display);
+    font-size: 52px;
+    font-weight: 600;
+    color: var(--black);
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .kpi-sub {
+    font-size: 11px;
+    color: var(--gray-mid);
+  }
+  .kpi-signal {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    margin-top: 8px;
+    padding: 3px 8px;
+    border-radius: 2px;
+  }
+  .signal-good { background: #E8F5E9; color: var(--green); }
+  .signal-warn { background: #FFF3E0; color: var(--amber); }
+  .signal-red  { background: #FDECEA; color: var(--red); }
+
+  /* ─── CHARTS ROW ─── */
+  .charts-row {
+    display: grid;
+    grid-template-columns: 3fr 2fr;
+    gap: 16px;
+  }
+
+  /* ─── DELIVERY GRID ─── */
+  .delivery-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .metric-card {
+    background: var(--white);
+    border-radius: 4px;
+    padding: 22px 24px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.04);
+  }
+  .metric-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--gray-mid);
+    margin-bottom: 8px;
+  }
+  .metric-value {
+    font-family: var(--font-display);
+    font-size: 36px;
+    font-weight: 600;
+    color: var(--black);
+    line-height: 1.1;
+  }
+  .metric-bar-bg {
+    height: 4px;
+    background: var(--gray-light);
+    border-radius: 2px;
+    margin-top: 12px;
+    overflow: hidden;
+  }
+  .metric-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 1s ease;
+  }
+  .fill-green { background: var(--green); }
+  .fill-red   { background: var(--red); }
+  .fill-amber { background: var(--amber); }
+
+  /* ─── RISK GRID ─── */
+  .risk-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .risk-card {
+    background: var(--white);
+    border-radius: 4px;
+    padding: 20px 22px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.04);
+    border-left: 4px solid transparent;
+  }
+  .risk-card.high { border-color: var(--red); }
+  .risk-card.med  { border-color: var(--amber); }
+  .risk-card.low  { border-color: var(--green); }
+  .risk-title {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--gray-mid);
+    margin-bottom: 8px;
+  }
+  .risk-value {
+    font-family: var(--font-display);
+    font-size: 30px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .risk-card.high .risk-value { color: var(--red); }
+  .risk-card.med  .risk-value { color: var(--amber); }
+  .risk-card.low  .risk-value { color: var(--green); }
+  .risk-desc {
+    font-size: 11px;
+    color: var(--gray-mid);
+  }
+
+  /* ─── VALUE ROW ─── */
+  .value-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .value-card {
+    background: var(--white);
+    border-radius: 4px;
+    padding: 22px 24px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .value-icon {
+    font-size: 20px;
+    margin-bottom: 4px;
+  }
+  .value-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--gray-mid);
+  }
+  .value-number {
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-weight: 600;
+    color: var(--black);
+  }
+  .value-unit {
+    font-size: 11px;
+    color: var(--gray-mid);
+  }
+
+  /* ─── NARRATIVE SECTION ─── */
+  .narrative-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .narrative-block {
+    background: var(--white);
+    border-radius: 4px;
+    padding: 24px 26px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.04);
+  }
+  .narrative-title {
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--black);
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--gray-light);
+  }
+  .narrative-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .narrative-list li {
+    font-size: 12px;
+    color: var(--gray-dark);
+    padding-left: 14px;
+    position: relative;
+    line-height: 1.5;
+  }
+  .narrative-list li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 7px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--red);
+  }
+  .narrative-list.gold li::before { background: var(--gold-muted); }
+  .narrative-list.gray li::before { background: var(--gray-mid); }
+
+  /* ─── EXEC SUMMARY BAR ─── */
+  .exec-summary {
+    background: var(--red);
+    border-radius: 4px;
+    padding: 22px 32px;
+    color: var(--white);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .exec-summary-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.65);
+    flex-shrink: 0;
+    min-width: 100px;
+  }
+  .exec-summary-text {
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--white);
+    line-height: 1.5;
+  }
+
+  /* ─── FOOTER ─── */
+  .footer {
+    background: var(--white);
+    border-top: 1px solid var(--gray-light);
+    padding: 18px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 100%;
+  }
+  .footer-left {
+    font-size: 10px;
+    color: var(--gray-mid);
+    letter-spacing: 0.05em;
+  }
+  .footer-right {
+    font-size: 10px;
+    color: var(--gray-mid);
+    font-family: var(--font-mono);
+  }
+
+  /* ─── SCROLL ANIMATIONS ─── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Chart container heights */
+  .chart-wrap { position: relative; }
+  #workMixChart { max-height: 280px; }
+  #criticalChart { max-height: 280px; }
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: linear-gradient(to right, var(--red), transparent);
+    opacity: 0.2;
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══ -->
+<header class="header">
+  <div class="header-inner">
+    <div class="header-brand">
+      <div class="header-logo">Wells Fargo</div>
+      <div class="header-subtitle">CRRT — Quarterly Team Performance Report</div>
+    </div>
+    <div class="header-meta">
+      <div class="quarter-badge">Q1 · 2026</div>
+      <div class="report-date">Period: January – March 2026 &nbsp;|&nbsp; Prepared: April 2026</div>
+    </div>
+  </div>
+</header>
+
+<!-- ═══ MAIN ═══ -->
+<main class="main">
+
+  <!-- Executive Summary Banner -->
+  <div class="exec-summary reveal">
+    <div class="exec-summary-label">Executive Summary</div>
+    <div class="exec-summary-text">
+      The CRRT team delivered 204 work items this quarter — 88% on time, with 92.8% quality index — 
+      driven heavily by risk and regulatory obligations. Value impact includes 340 hours saved and 3 automation improvements deployed.
+    </div>
+  </div>
+
+  <!-- KPI Row -->
+  <div class="reveal">
+    <div class="section-label"><span>Core KPIs</span></div>
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-label">Total Items Delivered</div>
+        <div class="kpi-value">204</div>
+        <div class="kpi-sub">Work outputs this quarter</div>
+        <div class="kpi-signal signal-good">↑ +18% vs last quarter</div>
+      </div>
+      <div class="kpi-card gold">
+        <div class="kpi-label">Backlog / Pending</div>
+        <div class="kpi-value">34</div>
+        <div class="kpi-sub">Items in queue</div>
+        <div class="kpi-signal signal-warn">⚠ Moderate pressure</div>
+      </div>
+      <div class="kpi-card neutral">
+        <div class="kpi-label">Team Size</div>
+        <div class="kpi-value">12</div>
+        <div class="kpi-sub">Active contributors</div>
+        <div class="kpi-signal signal-good">Stable headcount</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Work Mix + Critical Work -->
+  <div class="reveal">
+    <div class="section-label"><span>Work Distribution & Criticality</span></div>
+    <div class="charts-row">
+      <div class="card">
+        <div style="font-family:var(--font-display);font-size:16px;font-weight:600;margin-bottom:18px;">Type of Work Delivered</div>
+        <div class="chart-wrap">
+          <canvas id="workMixChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div style="font-family:var(--font-display);font-size:16px;font-weight:600;margin-bottom:4px;">Critical Work Coverage</div>
+        <div style="font-size:11px;color:var(--gray-mid);margin-bottom:18px;">% of total classified as critical</div>
+        <div class="chart-wrap">
+          <canvas id="criticalChart"></canvas>
+        </div>
+        <div style="text-align:center;margin-top:12px;">
+          <div style="font-family:var(--font-display);font-size:36px;font-weight:600;color:var(--red);">14.2%</div>
+          <div style="font-size:11px;color:var(--gray-mid);">Avg critical workload across team</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delivery Quality -->
+  <div class="reveal">
+    <div class="section-label"><span>Delivery & Quality</span></div>
+    <div class="delivery-grid">
+      <div class="metric-card">
+        <div class="metric-label">On-Time Delivery Rate</div>
+        <div class="metric-value">88.3%</div>
+        <div class="metric-bar-bg"><div class="metric-bar-fill fill-green" style="width:88.3%"></div></div>
+        <div class="kpi-signal signal-good" style="margin-top:10px;">↑ Above 85% threshold</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Quality Index</div>
+        <div class="metric-value">92.8%</div>
+        <div class="metric-bar-bg"><div class="metric-bar-fill fill-green" style="width:92.8%"></div></div>
+        <div class="kpi-signal signal-good" style="margin-top:10px;">↑ Strong output accuracy</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Defect / Issue Count</div>
+        <div class="metric-value">114</div>
+        <div class="metric-bar-bg"><div class="metric-bar-fill fill-amber" style="width:55%"></div></div>
+        <div class="kpi-signal signal-warn" style="margin-top:10px;">⚠ Monitor rework rate</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Rework / Correction Rate</div>
+        <div class="metric-value">7.2%</div>
+        <div class="metric-bar-bg"><div class="metric-bar-fill fill-green" style="width:7.2%"></div></div>
+        <div class="kpi-signal signal-good" style="margin-top:10px;">Within acceptable range</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Critical Work Coverage</div>
+        <div class="metric-value">76%</div>
+        <div class="metric-bar-bg"><div class="metric-bar-fill fill-green" style="width:76%"></div></div>
+        <div class="kpi-signal signal-good" style="margin-top:10px;">High criticality handled</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Resubmission Count</div>
+        <div class="metric-value">18</div>
+        <div class="metric-bar-bg"><div class="metric-bar-fill fill-amber" style="width:25%"></div></div>
+        <div class="kpi-signal signal-warn" style="margin-top:10px;">⚠ Needs attention</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Risk & Load -->
+  <div class="reveal">
+    <div class="section-label"><span>Risk & Sustainability</span></div>
+    <div class="risk-grid">
+      <div class="risk-card high">
+        <div class="risk-title">Exec Attention Required</div>
+        <div class="risk-value">3</div>
+        <div class="risk-desc">Work items needing leadership review</div>
+      </div>
+      <div class="risk-card high">
+        <div class="risk-title">Single Point of Failure</div>
+        <div class="risk-value">2</div>
+        <div class="risk-desc">Processes dependent on one person</div>
+      </div>
+      <div class="risk-card med">
+        <div class="risk-title">Busy Bandwidth (%)</div>
+        <div class="risk-value">78%</div>
+        <div class="risk-desc">Avg utilization across team members</div>
+      </div>
+      <div class="risk-card low">
+        <div class="risk-title">Peak Workload Point</div>
+        <div class="risk-value">Feb</div>
+        <div class="risk-desc">Highest concentration of critical work</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Value Delivered -->
+  <div class="reveal">
+    <div class="section-label"><span>Value & Efficiency</span></div>
+    <div class="value-grid">
+      <div class="value-card">
+        <div class="value-icon">⏱</div>
+        <div class="value-label">Time / Effort Saved</div>
+        <div class="value-number">340</div>
+        <div class="value-unit">hours this quarter</div>
+      </div>
+      <div class="value-card">
+        <div class="value-icon">⚙️</div>
+        <div class="value-label">Automation / Process Improvements</div>
+        <div class="value-number">3</div>
+        <div class="value-unit">improvements deployed</div>
+      </div>
+      <div class="value-card">
+        <div class="value-icon">💰</div>
+        <div class="value-label">Estimated Cost Saved</div>
+        <div class="value-number">$42K</div>
+        <div class="value-unit">estimated operational savings</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manager Narrative Inputs -->
+  <div class="reveal">
+    <div class="section-label"><span>Manager Inputs — Qualitative Context</span></div>
+    <div class="narrative-grid">
+      <div class="narrative-block">
+        <div class="narrative-title">Key Achievements & Wins</div>
+        <ul class="narrative-list">
+          <li>Successfully delivered all Q1 regulatory obligations ahead of deadline</li>
+          <li>Reduced rework rate from 9.4% to 7.2% through process standardization</li>
+          <li>Onboarded 2 new team members with zero delivery disruption</li>
+          <li>Deployed automated reporting pipeline saving 80+ hrs/quarter</li>
+        </ul>
+      </div>
+      <div class="narrative-block">
+        <div class="narrative-title">Upcoming Priorities — Q2</div>
+        <ul class="narrative-list gold">
+          <li>Complete Phase 2 of regulatory audit readiness program</li>
+          <li>Address SPOF risk by cross-training 2 identified team members</li>
+          <li>Expand automation coverage to 2 additional BAU workflows</li>
+          <li>Deliver board-facing risk summary for June review</li>
+        </ul>
+      </div>
+      <div class="narrative-block">
+        <div class="narrative-title">Executive Asks / Decisions Needed</div>
+        <ul class="narrative-list gray">
+          <li>Approval needed: Headcount increase request for Q3 surge coverage</li>
+          <li>Decision: Prioritization of regulatory vs executive-facing work in Q2</li>
+          <li>Awareness: 2 SPOF risks flagged — escalation path to be confirmed</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+</main>
+
+<!-- ═══ FOOTER ═══ -->
+<footer style="background:var(--white);border-top:1px solid var(--gray-light);padding:16px 40px;display:flex;justify-content:space-between;align-items:center;">
+  <div style="font-size:10px;color:var(--gray-mid);">Wells Fargo — CRRT Team &nbsp;|&nbsp; Internal Use Only &nbsp;|&nbsp; Q1 2026</div>
+  <div style="font-size:10px;color:var(--gray-mid);font-family:var(--font-mono);">Prepared by Team Lead &nbsp;·&nbsp; April 2026</div>
+</footer>
+
+<script>
+// ─── CHART.JS DEFAULTS ───
+Chart.defaults.font.family = "'IBM Plex Sans', sans-serif";
+Chart.defaults.font.size = 12;
+Chart.defaults.color = '#757575';
+
+// ─── WORK MIX BAR CHART ───
+const workMixCtx = document.getElementById('workMixChart').getContext('2d');
+new Chart(workMixCtx, {
+  type: 'bar',
+  data: {
+    labels: ['Risk Works', 'Regulatory Works', 'Non-BAU Works', 'Executive Works', 'BAU Works'],
+    datasets: [{
+      label: 'Work Items',
+      data: [129, 109, 125, 112, 61],
+      backgroundColor: [
+        '#C8102E',
+        '#E8546A',
+        '#9B0D22',
+        '#E8546A',
+        '#FFCD00',
+      ],
+      borderRadius: 3,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#1A1A1A',
+        padding: 10,
+        callbacks: {
+          label: ctx => ` ${ctx.parsed.x} items`
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: { color: 'rgba(0,0,0,0.05)' },
+        border: { display: false },
+      },
+      y: {
+        grid: { display: false },
+        border: { display: false },
+        ticks: { font: { size: 12 } }
+      }
+    }
+  }
+});
+
+// ─── CRITICAL WORK DONUT ───
+const criticalCtx = document.getElementById('criticalChart').getContext('2d');
+new Chart(criticalCtx, {
+  type: 'doughnut',
+  data: {
+    labels: ['Critical', 'Non-Critical'],
+    datasets: [{
+      data: [14.2, 85.8],
+      backgroundColor: ['#C8102E', '#FFCD00'],
+      borderWidth: 0,
+      hoverOffset: 6,
+    }]
+  },
+  options: {
+    responsive: true,
+    cutout: '68%',
+    plugins: {
+      legend: {
+        position: 'top',
+        labels: {
+          usePointStyle: true,
+          pointStyle: 'circle',
+          padding: 16,
+          font: { size: 12 }
+        }
+      },
+      tooltip: {
+        backgroundColor: '#1A1A1A',
+        callbacks: {
+          label: ctx => ` ${ctx.parsed}%`
+        }
+      }
+    }
+  }
+});
+
+// ─── SCROLL REVEAL ───
+const reveals = document.querySelectorAll('.reveal');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach((entry, i) => {
+    if (entry.isIntersecting) {
+      setTimeout(() => entry.target.classList.add('visible'), i * 80);
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.1 });
+reveals.forEach(el => observer.observe(el));
+
+// ─── ANIMATE KPI NUMBERS ───
+function animateNumber(el, target, duration = 1200, isFloat = false) {
+  const start = performance.now();
+  const update = (time) => {
+    const elapsed = time - start;
+    const progress = Math.min(elapsed / duration, 1);
+    const ease = 1 - Math.pow(1 - progress, 3);
+    const current = isFloat ? (target * ease).toFixed(1) : Math.floor(target * ease);
+    el.textContent = el.dataset.prefix ? el.dataset.prefix + current : current + (el.dataset.suffix || '');
+    if (progress < 1) requestAnimationFrame(update);
+  };
+  requestAnimationFrame(update);
+}
+
+// Trigger number animations when KPIs enter viewport
+const kpiObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const kpis = entry.target.querySelectorAll('.kpi-value');
+      kpis.forEach(el => {
+        const raw = el.textContent.trim();
+        const num = parseFloat(raw.replace(/[^0-9.]/g, ''));
+        if (!isNaN(num) && num > 0) animateNumber(el, num, 1200, raw.includes('.'));
+      });
+      kpiObserver.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.3 });
+document.querySelectorAll('.kpi-row').forEach(r => kpiObserver.observe(r));
+</script>
+</body>
+</html>
