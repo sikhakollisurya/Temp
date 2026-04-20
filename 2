@@ -1,21 +1,775 @@
-import xlwings as xw
-import pandas as pd
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CRRT Quarterly Report — Wells Fargo</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --red:#C8102E; --red-dark:#9B0D22; --red-light:#F5D0D6;
+    --gold:#FFCD00; --gold-muted:#D4A800;
+    --black:#1A1A1A; --gray-dark:#3D3D3D; --gray-mid:#757575;
+    --gray-light:#E8E8E8; --gray-bg:#F7F6F4; --white:#FFFFFF;
+    --green:#2E7D32; --amber:#E65100;
+    --font-d:'Cormorant Garamond',Georgia,serif;
+    --font-b:'IBM Plex Sans',sans-serif;
+    --font-m:'IBM Plex Mono',monospace;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{font-family:var(--font-b);background:var(--gray-bg);color:var(--black);font-size:14px;line-height:1.6}
 
-# Open the workbook
-wb = xw.Book('your_file.xlsx')  # or xw.Book.caller() if running from Excel
-sheet = wb.sheets['Sheet1']     # change to your sheet name
+  /* ── LOAD SCREEN ── */
+  #loadScreen{
+    position:fixed;inset:0;z-index:9999;
+    background:var(--gray-bg);
+    display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:28px;
+    transition:opacity .4s ease;
+  }
+  #loadScreen.hidden{opacity:0;pointer-events:none}
+  .load-card{
+    background:var(--white);border-radius:6px;
+    box-shadow:0 8px 40px rgba(0,0,0,.12);
+    padding:48px 56px;text-align:center;max-width:480px;width:90%;
+  }
+  .load-logo{
+    font-family:var(--font-d);font-size:26px;font-weight:700;
+    color:var(--red);letter-spacing:.04em;text-transform:uppercase;
+    margin-bottom:4px;
+  }
+  .load-sub{font-size:11px;color:var(--gray-mid);letter-spacing:.1em;text-transform:uppercase;margin-bottom:32px}
+  .load-title{font-family:var(--font-d);font-size:20px;font-weight:600;color:var(--black);margin-bottom:8px}
+  .load-hint{font-size:12px;color:var(--gray-mid);margin-bottom:28px;line-height:1.6}
+  .drop-zone{
+    border:2px dashed var(--gray-light);border-radius:4px;
+    padding:32px 24px;cursor:pointer;transition:all .2s;
+    background:var(--gray-bg);
+  }
+  .drop-zone:hover,.drop-zone.drag{border-color:var(--red);background:var(--red-light)}
+  .drop-icon{font-size:32px;margin-bottom:8px}
+  .drop-text{font-size:13px;color:var(--gray-mid)}
+  .drop-text strong{color:var(--red)}
+  #fileInput{display:none}
+  .load-divider{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--gray-mid);font-size:11px}
+  .load-divider::before,.load-divider::after{content:'';flex:1;height:1px;background:var(--gray-light)}
+  .btn-demo{
+    width:100%;padding:12px;border:none;border-radius:3px;
+    background:var(--gray-bg);color:var(--gray-dark);
+    font-family:var(--font-b);font-size:12px;font-weight:500;
+    cursor:pointer;letter-spacing:.05em;transition:background .2s;
+  }
+  .btn-demo:hover{background:var(--gray-light)}
+  .load-error{
+    background:#FDECEA;border:1px solid var(--red-light);
+    border-radius:3px;padding:10px 14px;margin-top:14px;
+    font-size:12px;color:var(--red);display:none;
+  }
 
-# Get the full used range (includes blanks inside)
-used_range = sheet.used_range
+  /* ── HEADER ── */
+  .header{background:var(--red);position:relative;overflow:hidden}
+  .header::after{content:'';position:absolute;bottom:0;left:0;right:0;height:5px;background:var(--gold)}
+  .header-inner{display:flex;align-items:center;justify-content:space-between;max-width:1200px;margin:0 auto;padding:28px 40px 32px}
+  .header-logo{font-family:var(--font-d);font-size:28px;font-weight:700;color:var(--white);letter-spacing:.04em;text-transform:uppercase}
+  .header-sub{font-size:11px;color:rgba(255,255,255,.7);letter-spacing:.12em;text-transform:uppercase;margin-top:3px}
+  .header-meta{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+  .q-badge{background:var(--gold);color:var(--red-dark);font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:5px 14px;border-radius:2px}
+  .r-date{font-size:11px;color:rgba(255,255,255,.55);letter-spacing:.04em}
 
-# Get top-left and bottom-right cell
-top_left = used_range[0, 0]
-bottom_right = used_range[-1, -1]
+  /* ── RELOAD BAR ── */
+  .reload-bar{
+    background:var(--white);border-bottom:1px solid var(--gray-light);
+    padding:8px 40px;display:flex;align-items:center;justify-content:space-between;
+    max-width:100%;
+  }
+  .reload-info{font-size:11px;color:var(--gray-mid)}
+  .reload-info span{color:var(--green);font-weight:600}
+  .btn-reload{
+    background:none;border:1px solid var(--gray-light);border-radius:2px;
+    padding:5px 14px;font-family:var(--font-b);font-size:11px;
+    color:var(--gray-dark);cursor:pointer;transition:all .15s;
+  }
+  .btn-reload:hover{border-color:var(--red);color:var(--red)}
 
-# Define the full rectangular range
-full_range = sheet.range(top_left, bottom_right)
+  /* ── MAIN ── */
+  .main{max-width:1200px;margin:0 auto;padding:36px 40px 60px;display:flex;flex-direction:column;gap:32px}
 
-# Load into DataFrame (assumes first row is header)
-df = full_range.options(pd.DataFrame, header=True, index=False).value
+  /* ── SECTION LABEL ── */
+  .sl{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+  .sl::before{content:'';display:block;width:4px;height:18px;background:var(--red);border-radius:2px;flex-shrink:0}
+  .sl span{font-size:10px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--gray-mid)}
 
-print(df)
+  /* ── CARD ── */
+  .card{background:var(--white);border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.04);padding:28px 32px;transition:box-shadow .2s}
+  .card:hover{box-shadow:0 4px 16px rgba(0,0,0,.1),0 0 0 1px rgba(0,0,0,.05)}
+
+  /* ── KPI ROW ── */
+  .kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .kpi-card{background:var(--white);border-radius:4px;padding:24px 28px;box-shadow:0 1px 4px rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.04);position:relative;overflow:hidden;transition:box-shadow .2s}
+  .kpi-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.1)}
+  .kpi-card::after{content:'';position:absolute;top:0;left:0;width:100%;height:3px;background:var(--red)}
+  .kpi-card.gold::after{background:var(--gold)}
+  .kpi-card.neutral::after{background:var(--gray-light)}
+  .kpi-lbl{font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--gray-mid);margin-bottom:10px}
+  .kpi-val{font-family:var(--font-d);font-size:52px;font-weight:600;color:var(--black);line-height:1;margin-bottom:6px}
+  .kpi-sub{font-size:11px;color:var(--gray-mid)}
+  .sig{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;margin-top:8px;padding:3px 8px;border-radius:2px}
+  .g{background:#E8F5E9;color:var(--green)}
+  .w{background:#FFF3E0;color:var(--amber)}
+  .r{background:#FDECEA;color:var(--red)}
+
+  /* ── CHARTS ── */
+  .charts-row{display:grid;grid-template-columns:3fr 2fr;gap:16px}
+
+  /* ── DELIVERY GRID ── */
+  .d-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .mc{background:var(--white);border-radius:4px;padding:22px 24px;box-shadow:0 1px 4px rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.04)}
+  .ml{font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--gray-mid);margin-bottom:8px}
+  .mv{font-family:var(--font-d);font-size:36px;font-weight:600;color:var(--black);line-height:1.1}
+  .bar-bg{height:4px;background:var(--gray-light);border-radius:2px;margin-top:12px;overflow:hidden}
+  .bar-f{height:100%;border-radius:2px;transition:width 1s ease}
+  .fg{background:var(--green)}.fr{background:var(--red)}.fa{background:var(--amber)}
+
+  /* ── RISK ── */
+  .risk-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  .rc{background:var(--white);border-radius:4px;padding:20px 22px;box-shadow:0 1px 4px rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.04);border-left:4px solid transparent}
+  .rc.hi{border-color:var(--red)}.rc.md{border-color:var(--amber)}.rc.lo{border-color:var(--green)}
+  .rt{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--gray-mid);margin-bottom:8px}
+  .rv{font-family:var(--font-d);font-size:30px;font-weight:600;margin-bottom:4px}
+  .rc.hi .rv{color:var(--red)}.rc.md .rv{color:var(--amber)}.rc.lo .rv{color:var(--green)}
+  .rd{font-size:11px;color:var(--gray-mid)}
+
+  /* ── VALUE ── */
+  .v-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .vc{background:var(--white);border-radius:4px;padding:22px 24px;box-shadow:0 1px 4px rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.04);display:flex;flex-direction:column;gap:6px}
+  .vi{font-size:20px;margin-bottom:4px}
+  .vl{font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--gray-mid)}
+  .vn{font-family:var(--font-d);font-size:32px;font-weight:600;color:var(--black)}
+  .vu{font-size:11px;color:var(--gray-mid)}
+
+  /* ── NARRATIVE ── */
+  .narr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .nb{background:var(--white);border-radius:4px;padding:24px 26px;box-shadow:0 1px 4px rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.04)}
+  .nt{font-family:var(--font-d);font-size:14px;font-weight:600;color:var(--black);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--gray-light)}
+  .nl{list-style:none;display:flex;flex-direction:column;gap:8px}
+  .nl li{font-size:12px;color:var(--gray-dark);padding-left:14px;position:relative;line-height:1.5}
+  .nl li::before{content:'';position:absolute;left:0;top:7px;width:5px;height:5px;border-radius:50%;background:var(--red)}
+  .nl.gold li::before{background:var(--gold-muted)}
+  .nl.gray li::before{background:var(--gray-mid)}
+
+  /* ── EXEC BANNER ── */
+  .exec-banner{background:var(--red);border-radius:4px;padding:22px 32px;color:var(--white);display:flex;align-items:center;gap:16px}
+  .eb-lbl{font-size:10px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.6);flex-shrink:0;min-width:110px}
+  .eb-txt{font-family:var(--font-d);font-size:16px;font-weight:500;color:var(--white);line-height:1.5}
+
+  /* ── QOQ TREND ── */
+  .trend-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .tc{background:var(--white);border-radius:4px;padding:20px 24px;box-shadow:0 1px 4px rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.04)}
+  .tl{font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--gray-mid);margin-bottom:6px}
+  .tv{font-family:var(--font-d);font-size:28px;font-weight:600;color:var(--black)}
+  .tdelta{font-size:12px;font-weight:500;margin-top:4px}
+  .tdelta.up{color:var(--green)}.tdelta.dn{color:var(--red)}.tdelta.flat{color:var(--gray-mid)}
+
+  /* ── REVEAL ── */
+  .reveal{opacity:0;transform:translateY(20px);transition:opacity .5s ease,transform .5s ease}
+  .reveal.visible{opacity:1;transform:translateY(0)}
+
+  .divider{height:1px;background:linear-gradient(to right,var(--red),transparent);opacity:.2}
+
+  footer{background:var(--white);border-top:1px solid var(--gray-light);padding:16px 40px;display:flex;justify-content:space-between;align-items:center}
+  .fl{font-size:10px;color:var(--gray-mid)}
+  .fr2{font-size:10px;color:var(--gray-mid);font-family:var(--font-m)}
+</style>
+</head>
+<body>
+
+<!-- ══ LOAD SCREEN ══ -->
+<div id="loadScreen">
+  <div class="load-card">
+    <div class="load-logo">Wells Fargo</div>
+    <div class="load-sub">CRRT — Quarterly Performance Dashboard</div>
+    <div class="load-title">Load Your Data</div>
+    <div class="load-hint">Select the quarterly Excel template filled by your team.<br>The dashboard will populate automatically.</div>
+    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <div class="drop-icon">📊</div>
+      <div class="drop-text"><strong>Click to browse</strong> or drag & drop</div>
+      <div class="drop-text" style="margin-top:4px;font-size:11px;">CRRT_Quarterly_Template.xlsx</div>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls"/>
+    <div class="load-divider">or</div>
+    <button class="btn-demo" onclick="loadDemoData()">▶ Preview with sample data</button>
+    <div class="load-error" id="loadError"></div>
+  </div>
+</div>
+
+<!-- ══ HEADER ══ -->
+<header class="header">
+  <div class="header-inner">
+    <div>
+      <div class="header-logo">Wells Fargo</div>
+      <div class="header-sub">CRRT — Quarterly Team Performance Report</div>
+    </div>
+    <div class="header-meta">
+      <div class="q-badge" id="hdrQuarter">Q1 · 2026</div>
+      <div class="r-date" id="hdrPeriod">Period: January – March 2026 &nbsp;|&nbsp; Prepared: April 2026</div>
+    </div>
+  </div>
+</header>
+
+<!-- ══ RELOAD BAR ══ -->
+<div class="reload-bar">
+  <div class="reload-info">Data loaded from: <span id="fileName">—</span></div>
+  <button class="btn-reload" onclick="showLoadScreen()">⟳ Load New File</button>
+</div>
+
+<!-- ══ MAIN ══ -->
+<main class="main">
+
+  <!-- Exec Banner -->
+  <div class="exec-banner reveal">
+    <div class="eb-lbl">Executive Summary</div>
+    <div class="eb-txt" id="execSummary">Loading...</div>
+  </div>
+
+  <!-- Core KPIs -->
+  <div class="reveal">
+    <div class="sl"><span>Core KPIs</span></div>
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-lbl">Total Items Delivered</div>
+        <div class="kpi-val" id="kpiDelivered">—</div>
+        <div class="kpi-sub">Work outputs this quarter</div>
+        <div class="sig" id="kpiDeliveredSig">—</div>
+      </div>
+      <div class="kpi-card gold">
+        <div class="kpi-lbl">Backlog / Pending</div>
+        <div class="kpi-val" id="kpiBacklog">—</div>
+        <div class="kpi-sub">Items in queue</div>
+        <div class="sig w" id="kpiBacklogSig">—</div>
+      </div>
+      <div class="kpi-card neutral">
+        <div class="kpi-lbl">Team Size</div>
+        <div class="kpi-val" id="kpiTeam">—</div>
+        <div class="kpi-sub">Active contributors</div>
+        <div class="sig g">Stable headcount</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Work Mix + Critical -->
+  <div class="reveal">
+    <div class="sl"><span>Work Distribution & Criticality</span></div>
+    <div class="charts-row">
+      <div class="card">
+        <div style="font-family:var(--font-d);font-size:16px;font-weight:600;margin-bottom:18px;">Type of Work Delivered</div>
+        <canvas id="workMixChart" style="max-height:260px"></canvas>
+      </div>
+      <div class="card">
+        <div style="font-family:var(--font-d);font-size:16px;font-weight:600;margin-bottom:4px;">Critical Work Coverage</div>
+        <div style="font-size:11px;color:var(--gray-mid);margin-bottom:18px;">% of total classified as critical</div>
+        <canvas id="criticalChart" style="max-height:200px"></canvas>
+        <div style="text-align:center;margin-top:12px">
+          <div style="font-family:var(--font-d);font-size:36px;font-weight:600;color:var(--red)" id="critPct">—</div>
+          <div style="font-size:11px;color:var(--gray-mid)">Avg critical workload across team</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delivery Quality -->
+  <div class="reveal">
+    <div class="sl"><span>Delivery & Quality</span></div>
+    <div class="d-grid">
+      <div class="mc">
+        <div class="ml">On-Time Delivery Rate</div>
+        <div class="mv" id="mOnTime">—</div>
+        <div class="bar-bg"><div class="bar-f fg" id="bOnTime" style="width:0%"></div></div>
+        <div class="sig" id="sOnTime">—</div>
+      </div>
+      <div class="mc">
+        <div class="ml">Quality Index</div>
+        <div class="mv" id="mQuality">—</div>
+        <div class="bar-bg"><div class="bar-f fg" id="bQuality" style="width:0%"></div></div>
+        <div class="sig" id="sQuality">—</div>
+      </div>
+      <div class="mc">
+        <div class="ml">Defect / Issue Count</div>
+        <div class="mv" id="mDefects">—</div>
+        <div class="bar-bg"><div class="bar-f fa" id="bDefects" style="width:50%"></div></div>
+        <div class="sig w" style="margin-top:10px">⚠ Monitor rework rate</div>
+      </div>
+      <div class="mc">
+        <div class="ml">Rework / Correction Rate</div>
+        <div class="mv" id="mRework">—</div>
+        <div class="bar-bg"><div class="bar-f" id="bRework" style="width:0%"></div></div>
+        <div class="sig" id="sRework">—</div>
+      </div>
+      <div class="mc">
+        <div class="ml">Critical Work Coverage</div>
+        <div class="mv" id="mCritCov">—</div>
+        <div class="bar-bg"><div class="bar-f fg" id="bCritCov" style="width:0%"></div></div>
+        <div class="sig g" style="margin-top:10px">High criticality handled</div>
+      </div>
+      <div class="mc">
+        <div class="ml">Resubmission Count</div>
+        <div class="mv" id="mResub">—</div>
+        <div class="bar-bg"><div class="bar-f fa" style="width:20%"></div></div>
+        <div class="sig w" style="margin-top:10px">⚠ Needs attention</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Risk -->
+  <div class="reveal">
+    <div class="sl"><span>Risk & Sustainability</span></div>
+    <div class="risk-grid">
+      <div class="rc hi">
+        <div class="rt">Exec Attention Required</div>
+        <div class="rv" id="rExecAttn">—</div>
+        <div class="rd">Work items needing leadership review</div>
+      </div>
+      <div class="rc hi">
+        <div class="rt">Single Point of Failure</div>
+        <div class="rv" id="rSPOF">—</div>
+        <div class="rd">Processes dependent on one person</div>
+      </div>
+      <div class="rc md">
+        <div class="rt">Busy Bandwidth (%)</div>
+        <div class="rv" id="rBandwidth">—</div>
+        <div class="rd">Avg utilization across team members</div>
+      </div>
+      <div class="rc lo">
+        <div class="rt">Peak Workload Month</div>
+        <div class="rv" id="rPeakMonth">—</div>
+        <div class="rd">Highest concentration of critical work</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Value -->
+  <div class="reveal">
+    <div class="sl"><span>Value & Efficiency</span></div>
+    <div class="v-grid">
+      <div class="vc">
+        <div class="vi">⏱</div>
+        <div class="vl">Time / Effort Saved</div>
+        <div class="vn" id="vTime">—</div>
+        <div class="vu">hours this quarter</div>
+      </div>
+      <div class="vc">
+        <div class="vi">⚙️</div>
+        <div class="vl">Automation / Process Improvements</div>
+        <div class="vn" id="vAuto">—</div>
+        <div class="vu">improvements deployed</div>
+      </div>
+      <div class="vc">
+        <div class="vi">💰</div>
+        <div class="vl">Estimated Cost Saved</div>
+        <div class="vn" id="vCost">—</div>
+        <div class="vu">estimated operational savings</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- QOQ Trend -->
+  <div class="reveal">
+    <div class="sl"><span>Quarter-over-Quarter Trend</span></div>
+    <div class="trend-grid">
+      <div class="tc">
+        <div class="tl">Total Items Delivered</div>
+        <div class="tv" id="tDelivered">—</div>
+        <div class="tdelta" id="tdDelivered">—</div>
+      </div>
+      <div class="tc">
+        <div class="tl">On-Time Delivery Rate</div>
+        <div class="tv" id="tOnTime">—</div>
+        <div class="tdelta" id="tdOnTime">—</div>
+      </div>
+      <div class="tc">
+        <div class="tl">Quality Index</div>
+        <div class="tv" id="tQuality">—</div>
+        <div class="tdelta" id="tdQuality">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Narrative -->
+  <div class="reveal">
+    <div class="sl"><span>Manager Inputs — Qualitative Context</span></div>
+    <div class="narr-grid">
+      <div class="nb">
+        <div class="nt">Key Achievements & Wins</div>
+        <ul class="nl" id="nAchievements"></ul>
+      </div>
+      <div class="nb">
+        <div class="nt">Upcoming Priorities — Next Quarter</div>
+        <ul class="nl gold" id="nPriorities"></ul>
+      </div>
+      <div class="nb">
+        <div class="nt">Executive Asks / Decisions Needed</div>
+        <ul class="nl gray" id="nAsks"></ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+</main>
+
+<footer>
+  <div class="fl">Wells Fargo — CRRT Team &nbsp;|&nbsp; Internal Use Only &nbsp;|&nbsp; <span id="footerQuarter">Q1 2026</span></div>
+  <div class="fr2">Prepared by Team Lead &nbsp;·&nbsp; <span id="footerDate">April 2026</span></div>
+</footer>
+
+<script>
+// ══════════════════════════════════
+// CHART INSTANCES
+// ══════════════════════════════════
+Chart.defaults.font.family = "'IBM Plex Sans', sans-serif";
+Chart.defaults.font.size = 12;
+Chart.defaults.color = '#757575';
+
+let workChart = null, critChart = null;
+
+function buildCharts(workData, critPct) {
+  // Destroy old charts if they exist
+  if (workChart) workChart.destroy();
+  if (critChart) critChart.destroy();
+
+  const wCtx = document.getElementById('workMixChart').getContext('2d');
+  workChart = new Chart(wCtx, {
+    type: 'bar',
+    data: {
+      labels: workData.map(d => d.label),
+      datasets: [{
+        label: 'Work Items',
+        data: workData.map(d => d.value),
+        backgroundColor: ['#C8102E','#E8546A','#9B0D22','#D4363C','#FFCD00'],
+        borderRadius: 3,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: '#1A1A1A', padding: 10, callbacks: { label: ctx => ` ${ctx.parsed.x} items` } }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(0,0,0,0.05)' }, border: { display: false } },
+        y: { grid: { display: false }, border: { display: false }, ticks: { font: { size: 12 } } }
+      }
+    }
+  });
+
+  const cCtx = document.getElementById('criticalChart').getContext('2d');
+  critChart = new Chart(cCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Critical', 'Non-Critical'],
+      datasets: [{
+        data: [critPct, 100 - critPct],
+        backgroundColor: ['#C8102E', '#FFCD00'],
+        borderWidth: 0,
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      cutout: '68%',
+      plugins: {
+        legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'circle', padding: 16 } },
+        tooltip: { backgroundColor: '#1A1A1A', callbacks: { label: ctx => ` ${ctx.parsed}%` } }
+      }
+    }
+  });
+}
+
+// ══════════════════════════════════
+// POPULATE DASHBOARD
+// ══════════════════════════════════
+function populateDashboard(d) {
+  // Header
+  document.getElementById('hdrQuarter').textContent = `${d.quarter} · ${d.year}`;
+  document.getElementById('hdrPeriod').innerHTML = `Period: ${d.period} &nbsp;|&nbsp; Prepared: ${d.prepared}`;
+  document.getElementById('footerQuarter').textContent = `${d.quarter} ${d.year}`;
+  document.getElementById('footerDate').textContent = d.prepared;
+
+  // Exec summary
+  document.getElementById('execSummary').textContent = d.execSummary;
+
+  // KPIs
+  animateNum('kpiDelivered', d.totalDelivered);
+  animateNum('kpiBacklog', d.backlog);
+  animateNum('kpiTeam', d.teamSize);
+
+  // KPI signals
+  const deliveredSig = document.getElementById('kpiDeliveredSig');
+  if (d.prevDelivered > 0) {
+    const delta = ((d.totalDelivered - d.prevDelivered) / d.prevDelivered * 100).toFixed(1);
+    deliveredSig.textContent = (delta >= 0 ? `↑ +${delta}%` : `↓ ${delta}%`) + ' vs last quarter';
+    deliveredSig.className = 'sig ' + (delta >= 0 ? 'g' : 'r');
+  } else { deliveredSig.textContent = '— vs last quarter'; deliveredSig.className = 'sig'; }
+
+  const backlogSig = document.getElementById('kpiBacklogSig');
+  backlogSig.textContent = d.backlog > 40 ? '⚠ High pressure' : d.backlog > 20 ? '⚠ Moderate pressure' : '✓ Manageable';
+  backlogSig.className = 'sig ' + (d.backlog > 40 ? 'r' : d.backlog > 20 ? 'w' : 'g');
+
+  // Work mix chart
+  buildCharts([
+    { label: 'Risk Works', value: d.riskWork },
+    { label: 'Regulatory Works', value: d.regWork },
+    { label: 'Non-BAU Works', value: d.nonBau },
+    { label: 'Executive Works', value: d.execWork },
+    { label: 'BAU Works', value: d.bau },
+  ], d.criticalPct);
+
+  document.getElementById('critPct').textContent = d.criticalPct + '%';
+
+  // Delivery metrics
+  setMetric('mOnTime', 'bOnTime', 'sOnTime', d.onTime, '%', d.onTime >= 85 ? 'g' : d.onTime >= 75 ? 'w' : 'r', d.onTime >= 85 ? '↑ Above 85% threshold' : '⚠ Below threshold', d.onTime);
+  setMetric('mQuality', 'bQuality', 'sQuality', d.qualityIdx, '%', d.qualityIdx >= 90 ? 'g' : 'w', d.qualityIdx >= 90 ? '↑ Strong output accuracy' : '⚠ Needs improvement', d.qualityIdx);
+  document.getElementById('mDefects').textContent = d.defects;
+  setMetric('mRework', 'bRework', 'sRework', d.reworkRate, '%', d.reworkRate <= 8 ? 'g' : d.reworkRate <= 12 ? 'w' : 'r', d.reworkRate <= 8 ? '✓ Within acceptable range' : '⚠ High rework — review', Math.min(d.reworkRate * 4, 100));
+  document.getElementById('mCritCov').textContent = d.critCov + '%';
+  document.getElementById('bCritCov').style.width = d.critCov + '%';
+  document.getElementById('mResub').textContent = d.resubmission;
+
+  // Risk
+  document.getElementById('rExecAttn').textContent = d.execAttn;
+  document.getElementById('rSPOF').textContent = d.spof;
+  document.getElementById('rBandwidth').textContent = d.bandwidth + '%';
+  document.getElementById('rPeakMonth').textContent = d.peakMonth;
+
+  // Value
+  document.getElementById('vTime').textContent = d.timeSaved;
+  document.getElementById('vAuto').textContent = d.automation;
+  document.getElementById('vCost').textContent = '$' + Number(d.costSaved).toLocaleString();
+
+  // QOQ Trend
+  document.getElementById('tDelivered').textContent = d.totalDelivered;
+  document.getElementById('tOnTime').textContent = d.onTime + '%';
+  document.getElementById('tQuality').textContent = d.qualityIdx + '%';
+  setTrend('tdDelivered', d.totalDelivered, d.prevDelivered, 'items');
+  setTrend('tdOnTime', d.onTime, d.prevOnTime, 'pp');
+  setTrend('tdQuality', d.qualityIdx, d.prevQuality, 'pp');
+
+  // Narrative lists
+  fillList('nAchievements', d.achievements);
+  fillList('nPriorities', d.priorities);
+  fillList('nAsks', d.asks);
+
+  // Trigger reveals
+  initReveal();
+}
+
+function setMetric(valId, barId, sigId, val, unit, cls, msg, barPct) {
+  document.getElementById(valId).textContent = val + unit;
+  document.getElementById(barId).style.width = Math.min(barPct, 100) + '%';
+  document.getElementById(barId).className = 'bar-f ' + (cls === 'g' ? 'fg' : cls === 'r' ? 'fr' : 'fa');
+  const s = document.getElementById(sigId);
+  s.textContent = msg; s.className = 'sig ' + cls; s.style.marginTop = '10px';
+}
+
+function setTrend(id, curr, prev, unit) {
+  const el = document.getElementById(id);
+  if (!prev || prev === 0) { el.textContent = '— no prior data'; el.className = 'tdelta flat'; return; }
+  const delta = unit === 'pp' ? (curr - prev).toFixed(1) : ((curr - prev) / prev * 100).toFixed(1);
+  const isUp = parseFloat(delta) >= 0;
+  el.textContent = (isUp ? '↑ +' : '↓ ') + Math.abs(delta) + (unit === 'pp' ? ' pp vs prev qtr' : '% vs prev qtr');
+  el.className = 'tdelta ' + (isUp ? 'up' : 'dn');
+}
+
+function fillList(id, items) {
+  const ul = document.getElementById(id);
+  ul.innerHTML = '';
+  (items || []).filter(Boolean).forEach(item => {
+    const li = document.createElement('li');
+    li.textContent = item;
+    ul.appendChild(li);
+  });
+}
+
+function animateNum(id, target, duration = 1000) {
+  const el = document.getElementById(id);
+  const start = performance.now();
+  const update = (t) => {
+    const p = Math.min((t - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.floor(target * ease);
+    if (p < 1) requestAnimationFrame(update);
+    else el.textContent = target;
+  };
+  requestAnimationFrame(update);
+}
+
+// ══════════════════════════════════
+// EXCEL READER (SheetJS)
+// ══════════════════════════════════
+function readExcel(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws1 = wb.Sheets['KPIs_Metrics'];
+      const ws2 = wb.Sheets['Manager_Inputs'];
+      if (!ws1 || !ws2) throw new Error('Sheet names not found. Make sure you are using the official template.');
+
+      // Helper: get value from KPIs sheet by searching column A for the label
+      const kpiData = XLSX.utils.sheet_to_json(ws1, { header: ['A','B','C','D'], defval: '' });
+      const narrData = XLSX.utils.sheet_to_json(ws2, { header: ['A','B'], defval: '' });
+
+      function findVal(label) {
+        const row = kpiData.find(r => String(r.A).trim() === label.trim());
+        return row ? row.B : '';
+      }
+      function findNarr(label) {
+        const row = narrData.find(r => String(r.A).trim() === label.trim());
+        return row ? String(row.B).trim() : '';
+      }
+
+      const d = {
+        quarter:      String(findVal('Quarter') || 'Q1'),
+        year:         String(findVal('Year') || '2026'),
+        period:       String(findVal('Reporting Period') || ''),
+        prepared:     String(findVal('Prepared Date') || ''),
+        totalDelivered: Number(findVal('Total Work Items Delivered')) || 0,
+        backlog:      Number(findVal('Backlog / Pending Items')) || 0,
+        teamSize:     Number(findVal('Team Size (FTE)')) || 0,
+        bau:          Number(findVal('BAU Works')) || 0,
+        nonBau:       Number(findVal('Non-BAU / Change Work')) || 0,
+        regWork:      Number(findVal('Regulatory Works')) || 0,
+        execWork:     Number(findVal('Executive / Board-Facing Work')) || 0,
+        riskWork:     Number(findVal('Risk / Control Work')) || 0,
+        onTime:       Number(findVal('On-Time Delivery Rate (%)')) || 0,
+        qualityIdx:   Number(findVal('Quality Index (%)')) || 0,
+        defects:      Number(findVal('Total Defects / Issue Count')) || 0,
+        reworkRate:   Number(findVal('Rework / Correction Rate (%)')) || 0,
+        critCov:      Number(findVal('Critical Work Coverage (%)')) || 0,
+        resubmission: Number(findVal('Resubmission Count')) || 0,
+        execAttn:     Number(findVal('Executive Attention Required (Count)')) || 0,
+        spof:         Number(findVal('Single Point of Failure Work (Count)')) || 0,
+        bandwidth:    Number(findVal('Busy Bandwidth / Utilization (%)')) || 0,
+        peakMonth:    String(findVal('Peak Workload Month') || '—'),
+        criticalPct:  Number(findVal('Critical Work Coverage (%)')) || 0,
+        timeSaved:    Number(findVal('Time / Effort Saved (Hours)')) || 0,
+        automation:   Number(findVal('Automation / Process Improvements (Count)')) || 0,
+        costSaved:    Number(findVal('Cost Saved (Estimated USD)')) || 0,
+        prevDelivered:Number(findVal('Total Items Delivered (Prev Qtr)')) || 0,
+        prevOnTime:   Number(findVal('On-Time Delivery Rate (Prev Qtr)')) || 0,
+        prevQuality:  Number(findVal('Quality Index (Prev Qtr)')) || 0,
+        execSummary:  findNarr('Executive Summary'),
+        achievements: [
+          findNarr('Achievement 1'), findNarr('Achievement 2'),
+          findNarr('Achievement 3'), findNarr('Achievement 4')
+        ].filter(Boolean),
+        priorities: [
+          findNarr('Priority 1'), findNarr('Priority 2'),
+          findNarr('Priority 3'), findNarr('Priority 4')
+        ].filter(Boolean),
+        asks: [
+          findNarr('Ask / Decision 1'), findNarr('Ask / Decision 2'),
+          findNarr('Ask / Decision 3')
+        ].filter(Boolean),
+      };
+
+      // Use criticalPct from the dedicated risk row (row 41 in template)
+      const critRow = kpiData.find(r => String(r.A).includes('Critical Work Coverage') && String(r.C).includes('avg'));
+      if (critRow) d.criticalPct = Number(critRow.B) || d.criticalPct;
+
+      document.getElementById('fileName').textContent = file.name;
+      hideLoadScreen();
+      populateDashboard(d);
+    } catch(err) {
+      showError('Error reading file: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ══════════════════════════════════
+// DEMO DATA
+// ══════════════════════════════════
+function loadDemoData() {
+  document.getElementById('fileName').textContent = 'Sample Data (Demo)';
+  hideLoadScreen();
+  populateDashboard({
+    quarter:'Q1', year:'2026', period:'January – March 2026', prepared:'April 2026',
+    totalDelivered:204, backlog:34, teamSize:12,
+    bau:61, nonBau:125, regWork:109, execWork:112, riskWork:129,
+    onTime:88.3, qualityIdx:92.8, defects:114, reworkRate:7.2,
+    critCov:76, resubmission:18, execAttn:3, spof:2, bandwidth:78,
+    peakMonth:'Feb', criticalPct:14.2, timeSaved:340, automation:3, costSaved:42000,
+    prevDelivered:173, prevOnTime:84.1, prevQuality:90.2,
+    execSummary:'The CRRT team delivered 204 work items this quarter — 88% on time, with 92.8% quality index — driven heavily by risk and regulatory obligations. Value impact includes 340 hours saved and 3 automation improvements deployed.',
+    achievements:[
+      'Successfully delivered all Q1 regulatory obligations ahead of deadline',
+      'Reduced rework rate from 9.4% to 7.2% through process standardization',
+      'Onboarded 2 new team members with zero delivery disruption',
+      'Deployed automated reporting pipeline saving 80+ hrs/quarter'
+    ],
+    priorities:[
+      'Complete Phase 2 of regulatory audit readiness program',
+      'Address SPOF risk by cross-training 2 identified team members',
+      'Expand automation coverage to 2 additional BAU workflows',
+      'Deliver board-facing risk summary for June review'
+    ],
+    asks:[
+      'Approval needed: Headcount increase request for Q3 surge coverage',
+      'Decision: Prioritization of regulatory vs executive-facing work in Q2',
+      'Awareness: 2 SPOF risks flagged — escalation path to be confirmed'
+    ]
+  });
+}
+
+// ══════════════════════════════════
+// UI HELPERS
+// ══════════════════════════════════
+function hideLoadScreen() {
+  const ls = document.getElementById('loadScreen');
+  ls.classList.add('hidden');
+  setTimeout(() => ls.style.display = 'none', 400);
+}
+function showLoadScreen() {
+  const ls = document.getElementById('loadScreen');
+  ls.style.display = 'flex';
+  setTimeout(() => ls.classList.remove('hidden'), 10);
+}
+function showError(msg) {
+  const el = document.getElementById('loadError');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+// File input
+document.getElementById('fileInput').addEventListener('change', e => {
+  if (e.target.files[0]) readExcel(e.target.files[0]);
+});
+
+// Drag and drop
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag');
+  if (e.dataTransfer.files[0]) readExcel(e.dataTransfer.files[0]);
+});
+
+// Scroll reveal
+function initReveal() {
+  const els = document.querySelectorAll('.reveal');
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach((entry, i) => {
+      if (entry.isIntersecting) {
+        setTimeout(() => entry.target.classList.add('visible'), i * 80);
+        obs.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.08 });
+  els.forEach(el => { el.classList.remove('visible'); obs.observe(el); });
+}
+</script>
+</body>
+</html>
