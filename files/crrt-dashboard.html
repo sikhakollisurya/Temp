@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>CRRT Quarterly Dashboard — Wells Fargo</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--red:#C8102E;--rd:#9B0D22;--rl:#F5D0D6;--gold:#FFCD00;--gm:#D4A800;--gl:#FFF9D6;
+--blk:#1A1A1A;--dg:#3D3D3D;--mg:#757575;--lg:#E8E8E8;--bg:#F7F6F4;--wh:#FFFFFF;
+--gr:#2E7D32;--am:#E65100;--fd:'Cormorant Garamond',Georgia,serif;--fb:'IBM Plex Sans',sans-serif;--fm:'IBM Plex Mono',monospace}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}html{scroll-behavior:smooth}
+body{font-family:var(--fb);background:var(--bg);color:var(--blk);font-size:14px;line-height:1.6}
+
+/* LOAD SCREEN */
+#ls{position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;align-items:center;justify-content:center;transition:opacity .4s}
+#ls.hidden{opacity:0;pointer-events:none}
+.lcard{background:var(--wh);border-radius:6px;box-shadow:0 8px 40px rgba(0,0,0,.12);padding:44px 52px;max-width:680px;width:95%}
+.ll{font-family:var(--fd);font-size:26px;font-weight:700;color:var(--red);letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px;text-align:center}
+.ls2{font-size:11px;color:var(--mg);letter-spacing:.1em;text-transform:uppercase;margin-bottom:28px;text-align:center}
+.load-panels{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.lz{border:2px dashed var(--lg);border-radius:4px;padding:24px 16px;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg)}
+.lz:hover,.lz.drag{border-color:var(--red);background:var(--rl)}
+.lz.loaded{border-color:var(--gr);border-style:solid;background:#F1F8E9}
+.lz-icon{font-size:26px;margin-bottom:8px}
+.lz-title{font-family:var(--fd);font-size:16px;font-weight:600;color:var(--blk);margin-bottom:2px}
+.lz-file{font-size:11px;color:var(--mg);margin-bottom:10px;font-family:var(--fm)}
+.lz-status{font-size:11px;font-weight:600;color:var(--mg);margin-bottom:10px;min-height:16px}
+.lz.loaded .lz-status{color:var(--gr)}
+.lz-btn{background:var(--red);color:var(--wh);border:none;border-radius:2px;padding:7px 18px;font-family:var(--fb);font-size:11px;font-weight:600;cursor:pointer;letter-spacing:.06em;text-transform:uppercase;transition:background .15s}
+.lz.loaded .lz-btn{background:var(--gr)}
+.lz-btn:hover{filter:brightness(1.1)}
+.ld-div{display:flex;align-items:center;gap:12px;margin:14px 0;color:var(--mg);font-size:11px}
+.ld-div::before,.ld-div::after{content:'';flex:1;height:1px;background:var(--lg)}
+.btn-demo{width:100%;padding:11px;border:1px solid var(--lg);border-radius:3px;background:var(--wh);color:var(--dg);font-family:var(--fb);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s}
+.btn-demo:hover{border-color:var(--red);color:var(--red)}
+.load-err{background:#FDECEA;border:1px solid var(--rl);border-radius:3px;padding:9px 14px;margin-top:12px;font-size:12px;color:var(--red);display:none}
+input[type=file]{display:none}
+
+/* TOAST */
+#toast{position:fixed;bottom:24px;right:24px;z-index:9998;background:var(--dg);color:var(--wh);font-size:12px;font-weight:500;padding:10px 18px;border-radius:3px;transform:translateY(60px);opacity:0;transition:all .3s;pointer-events:none}
+#toast.show{transform:translateY(0);opacity:1}
+
+/* TOOLTIP */
+#tooltip{position:fixed;z-index:9997;background:var(--dg);color:var(--wh);border-radius:4px;padding:16px;width:240px;pointer-events:none;opacity:0;transition:opacity .15s;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+#tooltip.visible{opacity:1}
+.tip-name{font-family:var(--fd);font-size:17px;font-weight:600;margin-bottom:2px}
+.tip-period{font-size:10px;color:rgba(255,255,255,.5);margin-bottom:12px;letter-spacing:.06em}
+.tip-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.tip-metric{text-align:center;background:rgba(255,255,255,.07);border-radius:3px;padding:6px 4px}
+.tip-val{font-family:var(--fd);font-size:18px;font-weight:600;color:var(--gold)}
+.tip-lbl{font-size:9px;color:rgba(255,255,255,.5);letter-spacing:.06em;text-transform:uppercase;margin-top:2px}
+.tip-section{font-size:9px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.4);margin:10px 0 6px}
+.tip-bar-row{display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.tip-bar-label{font-size:10px;color:rgba(255,255,255,.7);width:72px;flex-shrink:0;font-size:10px}
+.tip-bar-bg{flex:1;height:4px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden}
+.tip-bar-fill{height:100%;background:var(--red);border-radius:2px}
+.tip-bar-val{font-size:10px;color:rgba(255,255,255,.5);width:18px;text-align:right;flex-shrink:0}
+.tip-lob{font-size:11px;color:rgba(255,255,255,.75);display:flex;justify-content:space-between;padding:2px 0}
+.tip-lob span{color:var(--gold);font-weight:600}
+
+/* HEADER */
+.header{background:var(--red);position:relative;overflow:hidden}
+.header::after{content:'';position:absolute;bottom:0;left:0;right:0;height:5px;background:var(--gold)}
+.header-inner{display:flex;align-items:center;justify-content:space-between;max-width:1240px;margin:0 auto;padding:26px 40px 30px}
+.h-logo{font-family:var(--fd);font-size:28px;font-weight:700;color:var(--wh);letter-spacing:.04em;text-transform:uppercase}
+.h-sub{font-size:11px;color:rgba(255,255,255,.7);letter-spacing:.12em;text-transform:uppercase;margin-top:3px}
+.h-meta{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+.q-badge{background:var(--gold);color:var(--rd);font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:5px 14px;border-radius:2px}
+.h-period{font-size:11px;color:rgba(255,255,255,.5);letter-spacing:.04em}
+
+/* RELOAD BAR */
+.rbar{background:var(--wh);border-bottom:1px solid var(--lg);padding:8px 40px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.rbar-file{font-size:11px;color:var(--mg);display:flex;align-items:center;gap:6px}
+.rbar-file span{color:var(--blk);font-weight:500}
+.rbar-dot{width:7px;height:7px;border-radius:50%;background:var(--gr);flex-shrink:0}
+.rbar-dot.off{background:var(--lg)}
+.rbar-dot.pulse{animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.rbar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.rbar-refresh{background:none;border:1px solid var(--lg);border-radius:2px;padding:5px 14px;font-family:var(--fb);font-size:11px;color:var(--dg);cursor:pointer;transition:all .15s}
+.rbar-refresh:hover{border-color:var(--red);color:var(--red)}
+.rbar-newfile{background:none;border:none;font-size:11px;color:var(--mg);cursor:pointer;text-decoration:underline;padding:0}
+.rbar-newfile:hover{color:var(--red)}
+.auto-badge{font-size:10px;color:var(--gr);background:#E8F5E9;padding:3px 8px;border-radius:2px;font-weight:500}
+.auto-badge.off{color:var(--mg);background:var(--bg)}
+
+/* MAIN */
+.main{max-width:1240px;margin:0 auto;padding:32px 40px 60px;display:flex;flex-direction:column;gap:28px}
+.sl{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.sl::before{content:'';display:block;width:4px;height:18px;background:var(--red);border-radius:2px;flex-shrink:0}
+.sl span{font-size:10px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--mg)}
+.card{background:var(--wh);border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.04);padding:26px 30px;transition:box-shadow .2s,transform .2s}
+.card:hover{box-shadow:0 6px 20px rgba(0,0,0,.1),0 0 0 1px rgba(0,0,0,.05);transform:translateY(-1px)}
+
+/* EXEC BANNER */
+.exec-banner{background:var(--red);border-radius:4px;padding:20px 30px;color:var(--wh);display:flex;align-items:center;gap:16px}
+.eb-lbl{font-size:10px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.55);flex-shrink:0;min-width:110px}
+.eb-txt{font-family:var(--fd);font-size:16px;font-weight:500;line-height:1.5}
+
+/* KPI ROW */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.kc{background:var(--wh);border-radius:4px;padding:22px 24px;box-shadow:0 1px 4px rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.04);position:relative;overflow:hidden;transition:box-shadow .2s,transform .2s;cursor:default}
+.kc:hover{box-shadow:0 6px 20px rgba(0,0,0,.1);transform:translateY(-2px)}
+.kc::after{content:'';position:absolute;top:0;left:0;width:100%;height:3px;background:var(--red)}
+.kc.gold::after{background:var(--gold)}.kc.green::after{background:var(--gr)}.kc.gray::after{background:var(--lg)}
+.kl{font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--mg);margin-bottom:8px}
+.kv{font-family:var(--fd);font-size:48px;font-weight:600;color:var(--blk);line-height:1;margin-bottom:4px}
+.ks{font-size:11px;color:var(--mg)}
+.ksig{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;margin-top:7px;padding:3px 8px;border-radius:2px}
+.sg{background:#E8F5E9;color:var(--gr)}.sw{background:#FFF3E0;color:var(--am)}.sr{background:#FDECEA;color:var(--red)}
+
+/* CHARTS */
+.charts2{display:grid;grid-template-columns:3fr 2fr;gap:14px}
+.charts-quad{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.chart-title{font-family:var(--fd);font-size:15px;font-weight:600;margin-bottom:14px}
+.chart-sub{font-size:11px;color:var(--mg);margin-bottom:14px;margin-top:-10px}
+
+/* PERSON TABLE */
+.tbl-wrap{overflow-x:auto;border-radius:4px;background:var(--wh);box-shadow:0 1px 4px rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.04)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead tr{background:var(--red)}
+thead th{color:var(--wh);font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:11px 12px;text-align:center;cursor:pointer;white-space:nowrap;transition:background .15s;user-select:none}
+thead th:first-child{text-align:left;padding-left:16px}
+thead th:hover{background:var(--rd)}
+thead th.sort-asc::after{content:" ↑"}
+thead th.sort-desc::after{content:" ↓"}
+tbody tr{border-bottom:1px solid var(--lg);transition:background .15s,transform .1s;cursor:default}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:#FFF5F5;transform:scaleX(1)}
+tbody tr:nth-child(even){background:var(--bg)}
+tbody tr:nth-child(even):hover{background:#FFF5F5}
+td{padding:10px 12px;text-align:center;color:var(--dg);font-size:12px}
+.td-name{text-align:left;padding-left:16px;font-weight:600;color:var(--blk);white-space:nowrap}
+.td-num{font-family:var(--fm);font-size:12px;font-weight:500}
+.tc-g{color:var(--gr);font-weight:600}.tc-r{color:var(--red);font-weight:600}.tc-w{color:var(--am);font-weight:600}
+.tc-bg-g{background:#E8F5E9}.tc-bg-r{background:#FDECEA}.tc-bg-w{background:#FFF3E0}
+.mini-bar{display:flex;height:8px;border-radius:3px;overflow:hidden;width:80px}
+.mb-seg{height:100%;transition:width .3s}
+.mb-bau{background:var(--gold)}.mb-nonbau{background:var(--red)}.mb-regulatory{background:#5C1A1A}
+.mb-executive{background:#E8546A}.mb-risk{background:var(--am)}
+
+/* ACHIEVEMENTS */
+.ach-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.ach-card{background:var(--wh);border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.04);padding:18px 20px;border-left:4px solid var(--red);transition:box-shadow .2s,transform .2s}
+.ach-card:hover{box-shadow:0 6px 20px rgba(0,0,0,.1);transform:translateY(-2px)}
+.ach-title{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mg);margin-bottom:8px}
+.ach-text{font-family:var(--fd);font-size:14px;font-weight:600;color:var(--blk);margin-bottom:8px;line-height:1.4}
+.ach-impact{font-size:11px;color:var(--dg);line-height:1.5;padding-top:8px;border-top:1px solid var(--lg)}
+.ach-impact::before{content:'Impact: ';font-weight:600;color:var(--red)}
+
+/* NARRATIVE GRID */
+.narr-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.nb{background:var(--wh);border-radius:4px;padding:22px 24px;box-shadow:0 1px 4px rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.04)}
+.nt{font-family:var(--fd);font-size:14px;font-weight:600;color:var(--blk);margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--lg)}
+.nl{list-style:none;display:flex;flex-direction:column;gap:8px}
+.nl li{font-size:12px;color:var(--dg);padding-left:14px;position:relative;line-height:1.5;transition:color .15s}
+.nl li:hover{color:var(--blk)}
+.nl li::before{content:'';position:absolute;left:0;top:7px;width:5px;height:5px;border-radius:50%;background:var(--red)}
+.nl.gold li::before{background:var(--gm)}.nl.gray li::before{background:var(--mg)}
+
+/* REVEAL */
+.reveal{opacity:0;transform:translateY(18px);transition:opacity .5s ease,transform .5s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+.divider{height:1px;background:linear-gradient(to right,var(--red),transparent);opacity:.2;margin-top:4px}
+
+footer{background:var(--wh);border-top:1px solid var(--lg);padding:14px 40px;display:flex;justify-content:space-between;align-items:center}
+.fl{font-size:10px;color:var(--mg)}.fr2{font-size:10px;color:var(--mg);font-family:var(--fm)}
+</style>
+</head>
+<body>
+
+<!-- LOAD SCREEN -->
+<div id="ls">
+<div class="lcard">
+  <div class="ll">Wells Fargo</div>
+  <div class="ls2">CRRT — Quarterly Team Performance Dashboard</div>
+  <div class="load-panels">
+    <div class="lz" id="uzZone" ondragover="ev(event,'u')" ondragleave="dl('u')" ondrop="drop(event,'u')">
+      <div class="lz-icon">👥</div>
+      <div class="lz-title">User Data</div>
+      <div class="lz-file">CRRT_User_Data.xlsx</div>
+      <div class="lz-status" id="uStatus">Not loaded</div>
+      <button class="lz-btn" onclick="pickFile('u')">Browse File</button>
+      <input type="file" id="uInput" accept=".xlsx" onchange="fromInput(event,'u')"/>
+    </div>
+    <div class="lz" id="mzZone" ondragover="ev(event,'m')" ondragleave="dl('m')" ondrop="drop(event,'m')">
+      <div class="lz-icon">👔</div>
+      <div class="lz-title">Manager Data</div>
+      <div class="lz-file">CRRT_Manager_Data.xlsx</div>
+      <div class="lz-status" id="mStatus">Not loaded</div>
+      <button class="lz-btn" onclick="pickFile('m')">Browse File</button>
+      <input type="file" id="mInput" accept=".xlsx" onchange="fromInput(event,'m')"/>
+    </div>
+  </div>
+  <div class="ld-div">or</div>
+  <button class="btn-demo" onclick="loadSample()">▶ Preview with sample data</button>
+  <div class="load-err" id="lerr"></div>
+</div>
+</div>
+
+<!-- TOOLTIP -->
+<div id="tooltip"></div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- HEADER -->
+<header class="header">
+<div class="header-inner">
+  <div><div class="h-logo">Wells Fargo</div><div class="h-sub">CRRT — Quarterly Team Performance Report</div></div>
+  <div class="h-meta">
+    <div class="q-badge" id="hQtr">Q1 · 2026</div>
+    <div class="h-period" id="hPeriod">01-01-2026 to 31-03-2026</div>
+  </div>
+</div>
+</header>
+
+<!-- RELOAD BAR -->
+<div class="rbar">
+  <div class="rbar-dot pulse" id="uDot"></div>
+  <div class="rbar-file">User File: <span id="uFileName">—</span></div>
+  <div class="rbar-dot pulse" id="mDot" style="margin-left:8px"></div>
+  <div class="rbar-file">Manager File: <span id="mFileName">—</span></div>
+  <div class="rbar-right">
+    <span class="auto-badge" id="autoBadge">⟳ Auto-refresh ON</span>
+    <button class="rbar-refresh" onclick="manualRefresh()">↺ Refresh Now</button>
+    <button class="rbar-newfile" onclick="showLS()">Load New Files</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<main class="main">
+
+<!-- Exec Banner -->
+<div class="exec-banner reveal">
+  <div class="eb-lbl">Executive Summary</div>
+  <div class="eb-txt" id="execBanner">Loading...</div>
+</div>
+
+<!-- KPIs -->
+<div class="reveal">
+  <div class="sl"><span>Core KPIs</span></div>
+  <div class="kpi-row">
+    <div class="kc"><div class="kl">Total Delivered</div><div class="kv" id="kDelivered">—</div><div class="ks">Work outputs this quarter</div><div class="ksig sg" id="kDelivSig">—</div></div>
+    <div class="kc gold"><div class="kl">Avg Utilization</div><div class="kv" id="kUtil">—</div><div class="ks">Team bandwidth usage</div><div class="ksig" id="kUtilSig">—</div></div>
+    <div class="kc green"><div class="kl">On-Time Rate</div><div class="kv" id="kOnTime">—</div><div class="ks">Delivery punctuality</div><div class="ksig" id="kOnTimeSig">—</div></div>
+    <div class="kc gray"><div class="kl">Total Backlog</div><div class="kv" id="kBacklog">—</div><div class="ks">Items pending across team</div><div class="ksig sw" id="kBacklogSig">—</div></div>
+  </div>
+</div>
+
+<!-- Work Mix + Critical -->
+<div class="reveal">
+  <div class="sl"><span>Work Distribution & Criticality</span></div>
+  <div class="charts2">
+    <div class="card"><div class="chart-title">Type of Work Delivered</div><canvas id="wChart" style="max-height:240px"></canvas></div>
+    <div class="card">
+      <div class="chart-title">Critical Work Coverage</div>
+      <div class="chart-sub">% of tasks classified as critical</div>
+      <canvas id="cChart" style="max-height:180px"></canvas>
+      <div style="text-align:center;margin-top:10px"><div style="font-family:var(--fd);font-size:34px;font-weight:600;color:var(--red)" id="critPctLbl">—</div><div style="font-size:11px;color:var(--mg)">avg critical workload</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Activity + Area -->
+<div class="reveal">
+  <div class="sl"><span>Activity Type & Area Distribution</span></div>
+  <div class="charts-quad">
+    <div class="card"><div class="chart-title">Activity Breakdown</div><canvas id="acChart" style="max-height:200px"></canvas></div>
+    <div class="card"><div class="chart-title">Area of Work</div><canvas id="arChart" style="max-height:200px"></canvas></div>
+  </div>
+</div>
+
+<!-- Per-Person Table -->
+<div class="reveal">
+  <div class="sl"><span>Per-Person Performance — Hover any row for details</span></div>
+  <div class="tbl-wrap">
+    <table id="personTable">
+      <thead>
+        <tr>
+          <th onclick="sortTable(0)" style="text-align:left;padding-left:16px">Name</th>
+          <th onclick="sortTable(1)">Delivered</th>
+          <th onclick="sortTable(2)">Utilization</th>
+          <th onclick="sortTable(3)">Backlog</th>
+          <th onclick="sortTable(4)">Stakeholder Eng.</th>
+          <th onclick="sortTable(5)">Sched. Delay</th>
+          <th onclick="sortTable(6)">On-Time %</th>
+          <th onclick="sortTable(7)">Critical %</th>
+          <th onclick="sortTable(8)">Rework %</th>
+          <th>Work Mix</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Achievements -->
+<div class="reveal">
+  <div class="sl"><span>Key Achievements This Quarter</span></div>
+  <div class="ach-grid" id="achGrid"></div>
+</div>
+
+<!-- Priorities + Asks -->
+<div class="reveal">
+  <div class="sl"><span>Manager Inputs — Forward-Looking</span></div>
+  <div class="narr-grid">
+    <div class="nb"><div class="nt">Upcoming Priorities</div><ul class="nl gold" id="nlPri"></ul></div>
+    <div class="nb"><div class="nt">Executive Asks &amp; Decisions Needed</div><ul class="nl gray" id="nlAsk"></ul></div>
+  </div>
+</div>
+
+<div class="divider"></div>
+</main>
+
+<footer>
+<div class="fl">Wells Fargo — CRRT Team &nbsp;|&nbsp; Internal Use Only &nbsp;|&nbsp; <span id="fQtr">Q1 2026</span></div>
+<div class="fr2">Auto-refreshes when Excel files are updated &nbsp;·&nbsp; <span id="fPeriod">01-01-2026 to 31-03-2026</span></div>
+</footer>
+
+<script>
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+const S={uH:null,mH:null,uD:null,mD:null,charts:{},interval:null,uMod:0,mMod:0,sortCol:-1,sortDir:1,lastData:null};
+const hasFSAA='showOpenFilePicker' in window;
+
+// ═══════════════════════════════════════
+// FILE LOADING
+// ═══════════════════════════════════════
+async function pickFile(type){
+  if(hasFSAA){
+    try{
+      const[h]=await window.showOpenFilePicker({types:[{description:'Excel',accept:{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx']}}]});
+      if(type==='u')S.uH=h;else S.mH=h;
+      await readFile(type);
+    }catch(e){if(e.name!=='AbortError')showErr('Error: '+e.message);}
+  }else{document.getElementById(type+'Input').click();}
+}
+function fromInput(e,type){if(e.target.files[0])processBuffer(e.target.files[0].arrayBuffer(),type,e.target.files[0].name,e.target.files[0].lastModified);}
+function ev(e,type){e.preventDefault();document.getElementById(type==='u'?'uzZone':'mzZone').classList.add('drag');}
+function dl(type){document.getElementById(type==='u'?'uzZone':'mzZone').classList.remove('drag');}
+function drop(e,type){e.preventDefault();dl(type);const f=e.dataTransfer.files[0];if(f)processBuffer(f.arrayBuffer(),type,f.name,f.lastModified);}
+async function readFile(type){
+  const h=type==='u'?S.uH:S.mH;if(!h)return;
+  const f=await h.getFile();
+  const mod=f.lastModified;
+  await processBuffer(f.arrayBuffer(),type,f.name,mod);
+}
+async function processBuffer(bufPromise,type,name,mod){
+  const buf=await bufPromise;
+  const wb=XLSX.read(buf,{type:'array'});
+  if(type==='u'){S.uD=parseUser(wb);if(mod)S.uMod=mod;setLoaded('u',name);}
+  else{S.mD=parseManager(wb);if(mod)S.mMod=mod;setLoaded('m',name);}
+  tryRender();
+}
+function setLoaded(type,name){
+  const z=document.getElementById(type==='u'?'uzZone':'mzZone');
+  const s=document.getElementById(type==='u'?'uStatus':'mStatus');
+  const fn=document.getElementById(type==='u'?'uFileName':'mFileName');
+  const dot=document.getElementById(type==='u'?'uDot':'mDot');
+  z.classList.add('loaded');
+  s.textContent='✓ '+name;
+  fn.textContent=name;
+  dot.classList.add('pulse');
+}
+function tryRender(){if(S.uD&&S.mD){const d=aggregate(S.uD,S.mD);S.lastData=d;renderAll(d);hideLS();if(hasFSAA)startRefresh();}}
+
+// ═══════════════════════════════════════
+// EXCEL PARSING
+// ═══════════════════════════════════════
+function parseUser(wb){
+  const ovWs=wb.Sheets['overview'];
+  const dpWs=wb.Sheets['deep'];
+  if(!ovWs)throw new Error('Sheet "overview" not found in User file.');
+  if(!dpWs)throw new Error('Sheet "deep" not found in User file.');
+  const ov=XLSX.utils.sheet_to_json(ovWs,{header:1,defval:''});
+  const dp=XLSX.utils.sheet_to_json(dpWs,{header:1,defval:''});
+  const overview=ov.slice(3).filter(r=>r[0]&&String(r[0]).trim()!=='Name').map(r=>({
+    name:String(r[0]).trim(),backlog:Number(r[1])||0,
+    se:Number(r[2])||0,delivered:Number(r[3])||0,sd:Number(r[4])||0
+  }));
+  const deep=dp.slice(3).filter(r=>r[1]&&String(r[1]).trim()!=='Employee Name').map(r=>({
+    name:String(r[1]).trim(),area:String(r[3]).trim(),lob:String(r[4]).trim(),
+    activity:String(r[5]).trim(),wt:String(r[6]).trim(),
+    onTime:String(r[10]).trim(),critical:String(r[11]).trim(),rework:String(r[12]).trim()
+  }));
+  return{overview,deep};
+}
+function parseManager(wb){
+  const sheets=['Employee_Manager_Fill','Reporting_Period','Upcoming_Priorities','Key_Achievements','Executive_Asks'];
+  sheets.forEach(s=>{if(!wb.Sheets[s])throw new Error(`Sheet "${s}" not found in Manager file.`);});
+  const ut=XLSX.utils.sheet_to_json(wb.Sheets['Employee_Manager_Fill'],{header:1,defval:''});
+  const rp=XLSX.utils.sheet_to_json(wb.Sheets['Reporting_Period'],{header:1,defval:''});
+  const pr=XLSX.utils.sheet_to_json(wb.Sheets['Upcoming_Priorities'],{header:1,defval:''});
+  const ac=XLSX.utils.sheet_to_json(wb.Sheets['Key_Achievements'],{header:1,defval:''});
+  const ex=XLSX.utils.sheet_to_json(wb.Sheets['Executive_Asks'],{header:1,defval:''});
+  const utilization=ut.slice(3).filter(r=>r[0]&&String(r[0]).trim()!=='Employee Name').map(r=>({name:String(r[0]).trim(),rate:Number(r[1])||0}));
+  const rpRow=rp[3]||[];
+  const period={start:String(rpRow[0]||''),end:String(rpRow[1]||'')};
+  const priorities=pr.slice(3).map(r=>String(r[0]).trim()).filter(Boolean);
+  const achievements=ac.slice(3).filter(r=>r[0]).map(r=>({achievement:String(r[0]).trim(),impact:String(r[1]||'').trim()}));
+  const asks=ex.slice(3).map(r=>String(r[0]).trim()).filter(Boolean);
+  return{utilization,period,priorities,achievements,asks};
+}
+
+// ═══════════════════════════════════════
+// AGGREGATION
+// ═══════════════════════════════════════
+function aggregate(ud,md){
+  const uMap={};md.utilization.forEach(u=>uMap[u.name]=u.rate);
+  const tMap={};ud.deep.forEach(t=>{if(!tMap[t.name])tMap[t.name]=[];tMap[t.name].push(t);});
+  const wTypes=['BAU','Non-BAU','Regulatory','Executive','Risk'];
+  const acts=['Data','Reporting','Analytics - Insights'];
+  const areas=['BEI','POD','DMO','PEG'];
+  const team=ud.overview.map(p=>{
+    const tasks=tMap[p.name]||[];
+    const n=tasks.length||1;
+    const onTC=tasks.filter(t=>t.onTime==='Yes').length;
+    const critC=tasks.filter(t=>t.critical==='Yes').length;
+    const rwC=tasks.filter(t=>t.rework==='Yes').length;
+    const wt={};wTypes.forEach(w=>wt[w]=0);tasks.forEach(t=>{if(wt.hasOwnProperty(t.wt))wt[t.wt]++;});
+    const ac2={};acts.forEach(a=>ac2[a]=0);tasks.forEach(t=>{if(ac2.hasOwnProperty(t.activity))ac2[t.activity]++;});
+    const ar={};areas.forEach(a=>ar[a]=0);tasks.forEach(t=>{if(ar.hasOwnProperty(t.area))ar[t.area]++;});
+    const lc={};tasks.forEach(t=>{lc[t.lob]=(lc[t.lob]||0)+1;});
+    const topLOBs=Object.entries(lc).sort((a,b)=>b[1]-a[1]).slice(0,3);
+    return{...p,util:uMap[p.name]||0,tasks,onTC,critC,rwC,onTimeR:Math.round(onTC/n*100),critPct:Math.round(critC/n*100),rwPct:Math.round(rwC/n*100),wt,ac:ac2,ar,topLOBs};
+  });
+  const allT=ud.deep;const an=allT.length||1;
+  const wMix={};wTypes.forEach(w=>wMix[w]=0);allT.forEach(t=>{if(wMix.hasOwnProperty(t.wt))wMix[t.wt]++;});
+  const aMix={};acts.forEach(a=>aMix[a]=0);allT.forEach(t=>{if(aMix.hasOwnProperty(t.activity))aMix[t.activity]++;});
+  const arMix={};areas.forEach(a=>arMix[a]=0);allT.forEach(t=>{if(arMix.hasOwnProperty(t.area))arMix[t.area]++;});
+  const totDel=team.reduce((s,p)=>s+p.delivered,0);
+  const totBL=team.reduce((s,p)=>s+p.backlog,0);
+  const avgU=Math.round(team.reduce((s,p)=>s+p.util,0)/team.length);
+  const onTR=Math.round(allT.filter(t=>t.onTime==='Yes').length/an*100);
+  const critP=Math.round(allT.filter(t=>t.critical==='Yes').length/an*100);
+  const rwR=Math.round(allT.filter(t=>t.rework==='Yes').length/an*100);
+  const pLabel=md.period.start&&md.period.end?`${md.period.start} to ${md.period.end}`:'Q1 2026';
+  const execSummary=`The CRRT team delivered ${totDel} work items this period — ${onTR}% on time, with avg team utilization of ${avgU}%. ${totBL} items remain in backlog. Key focus areas: Risk, Regulatory, and Non-BAU work.`;
+  return{period:md.period,periodLabel:pLabel,team,totals:{del:totDel,bl:totBL,avgU,onTR,critP,rwR,teamSize:team.length},wMix,aMix,arMix,achievements:md.achievements,priorities:md.priorities,asks:md.asks,execSummary};
+}
+
+// ═══════════════════════════════════════
+// RENDERING
+// ═══════════════════════════════════════
+function renderAll(d){
+  // Header
+  document.getElementById('hQtr').textContent='Q1 · 2026';
+  document.getElementById('hPeriod').textContent=d.periodLabel;
+  document.getElementById('fQtr').textContent='Q1 2026';
+  document.getElementById('fPeriod').textContent=d.periodLabel;
+  // Exec banner
+  document.getElementById('execBanner').textContent=d.execSummary;
+  // KPIs
+  animN('kDelivered',d.totals.del);animN('kUtil',d.totals.avgU);animN('kOnTime',d.totals.onTR);animN('kBacklog',d.totals.bl);
+  document.getElementById('kDelivSig').textContent=`Team of ${d.totals.teamSize}`;
+  const us=document.getElementById('kUtilSig');us.textContent=d.totals.avgU>=85?'↑ High utilization':d.totals.avgU>=75?'Moderate':'⚠ Below target';us.className='ksig '+(d.totals.avgU>=85?'sr':d.totals.avgU>=75?'sw':'sg');
+  const os=document.getElementById('kOnTimeSig');os.textContent=d.totals.onTR>=85?'↑ Above target':'⚠ Below 85% target';os.className='ksig '+(d.totals.onTR>=85?'sg':'sr');
+  document.getElementById('kBacklogSig').textContent=`${d.totals.bl} items queued`;
+  // Charts
+  buildCharts(d);
+  // Critical pct label
+  document.getElementById('critPctLbl').textContent=d.totals.critP+'%';
+  // Table
+  renderTable(d);
+  // Achievements
+  renderAch(d);
+  // Narrative
+  fillList('nlPri',d.priorities,'gold');
+  fillList('nlAsk',d.asks,'gray');
+  // Reveal
+  initReveal();
+}
+
+function renderTable(d){
+  const tbody=document.getElementById('tbody');tbody.innerHTML='';
+  const team=S.sortCol>=0?[...d.team].sort((a,b)=>{const vals=[a.name,a.delivered,a.util,a.backlog,a.se,a.sd,a.onTimeR,a.critPct,a.rwPct];return(vals[S.sortCol]>vals[S.sortCol+0+(S.sortCol<1?0:0)]?1:-1)*S.sortDir;}):d.team;
+  team.forEach(p=>{
+    const tr=document.createElement('tr');tr.dataset.name=p.name;
+    const total=Object.values(p.wt).reduce((a,b)=>a+b,0)||1;
+    const bar=`<div class="mini-bar">${Object.entries(p.wt).map(([k,v])=>`<div class="mb-seg mb-${k.toLowerCase().replace(/[^a-z]/g,'')}" style="width:${v/total*100}%" title="${k}:${v}"></div>`).join('')}</div>`;
+    const uc=p.util>=85?'tc-r':p.util>=75?'tc-w':'tc-g';
+    const bc=p.backlog>5?'tc-r':p.backlog>3?'tc-w':'';
+    const oc=p.onTimeR>=85?'tc-g':p.onTimeR>=75?'tc-w':'tc-r';
+    const cc=p.critPct>20?'tc-r':p.critPct>10?'tc-w':'';
+    const rc=p.rwPct>10?'tc-r':p.rwPct>5?'tc-w':'';
+    tr.innerHTML=`<td class="td-name">${p.name}</td><td class="td-num">${p.delivered}</td><td class="td-num ${uc}">${p.util}%</td><td class="td-num ${bc}">${p.backlog}</td><td class="td-num">${p.se}</td><td class="td-num ${p.sd>3?'tc-r':p.sd>1?'tc-w':''}">${p.sd}</td><td class="td-num ${oc}">${p.onTimeR}%</td><td class="td-num ${cc}">${p.critPct}%</td><td class="td-num ${rc}">${p.rwPct}%</td><td>${bar}</td>`;
+    tbody.appendChild(tr);
+  });
+  // Tooltip events
+  const tbl=document.getElementById('personTable');
+  tbl.onmousemove=e=>{const r=e.target.closest('tr[data-name]');if(!r){hideTip();return;}const p=d.team.find(x=>x.name===r.dataset.name);if(p)showTip(p,e.clientX,e.clientY);};
+  tbl.onmouseleave=hideTip;
+}
+
+function renderAch(d){
+  const g=document.getElementById('achGrid');g.innerHTML='';
+  d.achievements.forEach(a=>{
+    const div=document.createElement('div');div.className='ach-card';
+    div.innerHTML=`<div class="ach-title">Achievement</div><div class="ach-text">${a.achievement}</div>${a.impact?`<div class="ach-impact">${a.impact}</div>`:''}`;
+    g.appendChild(div);
+  });
+  if(!d.achievements.length)g.innerHTML='<div style="color:var(--mg);font-size:12px;padding:16px">No achievements added yet.</div>';
+}
+
+function fillList(id,items,cls=''){
+  const ul=document.getElementById(id);ul.className='nl'+(cls?' '+cls:'');ul.innerHTML='';
+  items.forEach(t=>{const li=document.createElement('li');li.textContent=t;ul.appendChild(li);});
+  if(!items.length){const li=document.createElement('li');li.textContent='None added yet.';li.style.color='var(--mg)';ul.appendChild(li);}
+}
+
+// ═══════════════════════════════════════
+// CHARTS
+// ═══════════════════════════════════════
+function buildCharts(d){
+  Chart.defaults.font.family="'IBM Plex Sans',sans-serif";Chart.defaults.font.size=11;Chart.defaults.color='#757575';
+  const dc=(id,cfg)=>{if(S.charts[id])S.charts[id].destroy();S.charts[id]=new Chart(document.getElementById(id).getContext('2d'),cfg);};
+  // Work mix bar
+  dc('wChart',{type:'bar',data:{labels:Object.keys(d.wMix),datasets:[{label:'Tasks',data:Object.values(d.wMix),backgroundColor:['#FFCD00','#C8102E','#5C1A1A','#E8546A','#E65100'],borderRadius:3,borderSkipped:false}]},options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false},tooltip:{backgroundColor:'#1A1A1A',padding:10,callbacks:{label:c=>` ${c.parsed.x} tasks`}}},scales:{x:{grid:{color:'rgba(0,0,0,0.04)'},border:{display:false}},y:{grid:{display:false},border:{display:false}}}}});
+  // Criticality donut
+  dc('cChart',{type:'doughnut',data:{labels:['Critical','Non-Critical'],datasets:[{data:[d.totals.critP,100-d.totals.critP],backgroundColor:['#C8102E','#FFCD00'],borderWidth:0,hoverOffset:5}]},options:{responsive:true,cutout:'70%',plugins:{legend:{position:'top',labels:{usePointStyle:true,pointStyle:'circle',padding:14}},tooltip:{backgroundColor:'#1A1A1A',callbacks:{label:c=>` ${c.parsed}%`}}}}});
+  // Activity donut
+  dc('acChart',{type:'doughnut',data:{labels:Object.keys(d.aMix),datasets:[{data:Object.values(d.aMix),backgroundColor:['#C8102E','#FFCD00','#3D3D3D'],borderWidth:0,hoverOffset:5}]},options:{responsive:true,cutout:'65%',plugins:{legend:{position:'bottom',labels:{usePointStyle:true,pointStyle:'circle',padding:10,font:{size:10}}},tooltip:{backgroundColor:'#1A1A1A',callbacks:{label:c=>` ${c.parsed} tasks`}}}}});
+  // Area donut
+  dc('arChart',{type:'doughnut',data:{labels:Object.keys(d.arMix),datasets:[{data:Object.values(d.arMix),backgroundColor:['#C8102E','#E8546A','#FFCD00','#9B0D22'],borderWidth:0,hoverOffset:5}]},options:{responsive:true,cutout:'65%',plugins:{legend:{position:'bottom',labels:{usePointStyle:true,pointStyle:'circle',padding:10,font:{size:10}}},tooltip:{backgroundColor:'#1A1A1A',callbacks:{label:c=>` ${c.parsed} tasks`}}}}});
+}
+
+// ═══════════════════════════════════════
+// TOOLTIP
+// ═══════════════════════════════════════
+function showTip(p,x,y){
+  const t=document.getElementById('tooltip');
+  const wTotal=Object.values(p.wt).reduce((a,b)=>a+b,0)||1;
+  t.innerHTML=`<div class="tip-name">${p.name}</div><div class="tip-period">Q1 2026 · ${p.tasks.length} tasks</div><div class="tip-grid"><div class="tip-metric"><div class="tip-val">${p.onTimeR}%</div><div class="tip-lbl">On-Time</div></div><div class="tip-metric"><div class="tip-val">${p.critPct}%</div><div class="tip-lbl">Critical</div></div><div class="tip-metric"><div class="tip-val">${p.util}%</div><div class="tip-lbl">Utilization</div></div></div><div class="tip-section">Work Mix</div>${Object.entries(p.wt).map(([k,v])=>`<div class="tip-bar-row"><span class="tip-bar-label">${k}</span><div class="tip-bar-bg"><div class="tip-bar-fill" style="width:${v/wTotal*100}%"></div></div><span class="tip-bar-val">${v}</span></div>`).join('')}<div class="tip-section">Top LOBs</div>${p.topLOBs.map(([l,n])=>`<div class="tip-lob">${l}<span>${n}</span></div>`).join('')}`;
+  let tx=x+16,ty=y-10;
+  if(tx+256>window.innerWidth)tx=x-268;
+  if(ty+340>window.innerHeight)ty=y-340;
+  t.style.left=tx+'px';t.style.top=ty+'px';t.classList.add('visible');
+}
+function hideTip(){document.getElementById('tooltip').classList.remove('visible');}
+
+// ═══════════════════════════════════════
+// TABLE SORTING
+// ═══════════════════════════════════════
+function sortTable(col){
+  if(S.sortCol===col)S.sortDir*=-1;else{S.sortCol=col;S.sortDir=1;}
+  document.querySelectorAll('thead th').forEach((th,i)=>{th.className=i===col?(S.sortDir===1?'sort-asc':'sort-desc'):'';});
+  if(S.lastData){
+    const fields=['name','delivered','util','backlog','se','sd','onTimeR','critPct','rwPct'];
+    const key=fields[col]||'name';
+    const sorted={...S.lastData,team:[...S.lastData.team].sort((a,b)=>{const av=a[key],bv=b[key];return(typeof av==='string'?av.localeCompare(bv):av-bv)*S.sortDir;})};
+    renderTable(sorted);
+  }
+}
+
+// ═══════════════════════════════════════
+// AUTO REFRESH
+// ═══════════════════════════════════════
+function startRefresh(){
+  if(S.interval)clearInterval(S.interval);
+  S.interval=setInterval(checkRefresh,15000);
+  document.getElementById('autoBadge').textContent='⟳ Auto-refresh ON';
+  document.getElementById('autoBadge').className='auto-badge';
+}
+async function checkRefresh(){
+  let changed=false;
+  if(S.uH){try{const f=await S.uH.getFile();if(f.lastModified!==S.uMod){S.uMod=f.lastModified;S.uD=parseUser(XLSX.read(await f.arrayBuffer(),{type:'array'}));changed=true;}}catch(e){}}
+  if(S.mH){try{const f=await S.mH.getFile();if(f.lastModified!==S.mMod){S.mMod=f.lastModified;S.mD=parseManager(XLSX.read(await f.arrayBuffer(),{type:'array'}));changed=true;}}catch(e){}}
+  if(changed&&S.uD&&S.mD){const d=aggregate(S.uD,S.mD);S.lastData=d;renderAll(d);showToast('✓ Dashboard updated from Excel');}
+}
+async function manualRefresh(){
+  document.getElementById('autoBadge').textContent='↺ Refreshing...';
+  if(hasFSAA){
+    if(S.uH){try{const f=await S.uH.getFile();S.uMod=f.lastModified;S.uD=parseUser(XLSX.read(await f.arrayBuffer(),{type:'array'}));}catch(e){}}
+    if(S.mH){try{const f=await S.mH.getFile();S.mMod=f.lastModified;S.mD=parseManager(XLSX.read(await f.arrayBuffer(),{type:'array'}));}catch(e){}}
+    if(S.uD&&S.mD){const d=aggregate(S.uD,S.mD);S.lastData=d;renderAll(d);}
+  }
+  showToast('✓ Refreshed successfully');
+  if(hasFSAA)setTimeout(()=>{document.getElementById('autoBadge').textContent='⟳ Auto-refresh ON';document.getElementById('autoBadge').className='auto-badge';},2000);
+}
+
+// ═══════════════════════════════════════
+// SAMPLE DATA
+// ═══════════════════════════════════════
+function loadSample(){
+  const uD={
+    overview:[
+      {name:"Rajesh",backlog:4,se:5,delivered:18,sd:2},{name:"Surya",backlog:1,se:4,delivered:18,sd:1},
+      {name:"Shreya",backlog:0,se:7,delivered:14,sd:0},{name:"Pratik",backlog:5,se:6,delivered:20,sd:3},
+      {name:"Ayushi",backlog:5,se:3,delivered:13,sd:2},{name:"Harkirat",backlog:1,se:5,delivered:16,sd:1},
+      {name:"Shweta",backlog:0,se:6,delivered:19,sd:0},{name:"Nishanth",backlog:6,se:4,delivered:13,sd:4},
+      {name:"Jashwanth",backlog:0,se:7,delivered:19,sd:1},{name:"Ajay",backlog:3,se:4,delivered:11,sd:2},
+      {name:"Archana",backlog:6,se:2,delivered:17,sd:3},{name:"Adarsh",backlog:6,se:4,delivered:20,sd:2},
+      {name:"Aditya",backlog:4,se:0,delivered:15,sd:1}
+    ],
+    deep:[]
+  };
+  const wts=["BAU","Non-BAU","Regulatory","Executive","Risk"];
+  const acts=["Data","Reporting","Analytics - Insights"];
+  const areas=["BEI","POD","DMO","PEG"];
+  const lobs=["Wealth Management","Investment Banking","Data & Analytics Services","Credit Risk","Market Risk","Corporate Banking","Compliance & Regulatory Reporting","Fraud & Financial Crime","Retail Banking","Operations & Technology"];
+  let seed=42;const rnd=()=>{seed=(seed*1664525+1013904223)&0xffffffff;return(seed>>>0)/0xffffffff;};
+  uD.overview.forEach(p=>{for(let i=0;i<p.delivered;i++)uD.deep.push({name:p.name,area:areas[Math.floor(rnd()*4)],lob:lobs[Math.floor(rnd()*10)],activity:acts[Math.floor(rnd()*3)],wt:wts[Math.floor(rnd()*5)],onTime:rnd()>.12?'Yes':'No',critical:rnd()<.14?'Yes':'No',rework:rnd()<.07?'Yes':'No'});});
+  const mD={
+    utilization:[{name:"Rajesh",rate:76},{name:"Surya",rate:83},{name:"Shreya",rate:89},{name:"Pratik",rate:76},{name:"Ayushi",rate:87},{name:"Harkirat",rate:87},{name:"Shweta",rate:77},{name:"Nishanth",rate:87},{name:"Jashwanth",rate:79},{name:"Ajay",rate:85},{name:"Archana",rate:76},{name:"Adarsh",rate:71},{name:"Aditya",rate:89}],
+    period:{start:"01-01-2026",end:"31-03-2026"},
+    priorities:["Increase efficiencies","Start python training","RDS migration"],
+    achievements:[{achievement:"Data transition to person x",impact:"Now we own the report Y"},{achievement:"Engage winning",impact:"Vast visibility of team"},{achievement:"Floor shifting",impact:"Great view from window"}],
+    asks:["What are the new Q3 expectations","When will u visit india?","What is the new team's name we are transitioning to?"]
+  };
+  S.uD=uD;S.mD=mD;
+  const d=aggregate(uD,mD);S.lastData=d;renderAll(d);
+  document.getElementById('uFileName').textContent='Sample Data';
+  document.getElementById('mFileName').textContent='Sample Data';
+  hideLS();
+}
+
+// ═══════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════
+function animN(id,target,dur=900){
+  const el=document.getElementById(id);if(!el)return;
+  const s=performance.now();
+  const u=t=>{const p=Math.min((t-s)/dur,1);const e=1-Math.pow(1-p,3);el.textContent=p<1?Math.floor(target*e):target;if(p<1)requestAnimationFrame(u);};
+  requestAnimationFrame(u);
+}
+let toastT=null;
+function showToast(msg){
+  const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
+  if(toastT)clearTimeout(toastT);
+  toastT=setTimeout(()=>t.classList.remove('show'),3000);
+}
+function showErr(msg){const e=document.getElementById('lerr');e.textContent=msg;e.style.display='block';}
+function hideLS(){const l=document.getElementById('ls');l.classList.add('hidden');setTimeout(()=>l.style.display='none',400);}
+function showLS(){const l=document.getElementById('ls');l.style.display='flex';setTimeout(()=>l.classList.remove('hidden'),10);}
+function initReveal(){
+  const obs=new IntersectionObserver((es)=>{es.forEach((e,i)=>{if(e.isIntersecting){setTimeout(()=>e.target.classList.add('visible'),i*70);obs.unobserve(e.target);}});},{threshold:0.08});
+  document.querySelectorAll('.reveal').forEach(el=>{el.classList.remove('visible');obs.observe(el);});
+}
+if(!hasFSAA){document.getElementById('autoBadge').textContent='Manual refresh only';document.getElementById('autoBadge').className='auto-badge off';}
+</script>
+</body>
+</html>
